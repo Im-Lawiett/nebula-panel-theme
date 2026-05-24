@@ -1,0 +1,501 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Nebula Panel API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management
+  - name: servers
+    description: Server management
+  - name: protect
+    description: Protect features
+  - name: maintenance
+    description: Maintenance mode
+  - name: stats
+    description: Statistics
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login to the panel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /users:
+    get:
+      operationId: getUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: User deleted
+
+  /users/{id}/ban:
+    post:
+      operationId: banUser
+      tags: [users]
+      summary: Ban a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanInput"
+      responses:
+        "200":
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/unban:
+    post:
+      operationId: unbanUser
+      tags: [users]
+      summary: Unban a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /servers:
+    get:
+      operationId: getServers
+      tags: [servers]
+      summary: List all servers
+      responses:
+        "200":
+          description: List of servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Server"
+
+  /protect/status:
+    get:
+      operationId: getProtectStatus
+      tags: [protect]
+      summary: Get all protect feature statuses
+      responses:
+        "200":
+          description: Protect statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProtectFeature"
+
+  /protect/toggle:
+    post:
+      operationId: toggleProtect
+      tags: [protect]
+      summary: Toggle a protect feature on/off
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProtectToggleInput"
+      responses:
+        "200":
+          description: Protect toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectFeature"
+
+  /maintenance:
+    get:
+      operationId: getMaintenanceStatus
+      tags: [maintenance]
+      summary: Get maintenance mode status
+      responses:
+        "200":
+          description: Maintenance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceStatus"
+
+    post:
+      operationId: setMaintenance
+      tags: [maintenance]
+      summary: Set maintenance mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaintenanceInput"
+      responses:
+        "200":
+          description: Maintenance status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceStatus"
+
+  /stats/overview:
+    get:
+      operationId: getOverviewStats
+      tags: [stats]
+      summary: Get panel overview statistics
+      responses:
+        "200":
+          description: Overview statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewStats"
+
+  /stats/activity:
+    get:
+      operationId: getActivity
+      tags: [stats]
+      summary: Get recent activity log
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityLog"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, username, email, role, isBanned, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin, dev]
+        isBanned:
+          type: boolean
+        banReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserInput:
+      type: object
+      required: [username, email, password, role]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [user, admin, dev]
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin, dev]
+        password:
+          type: string
+
+    BanInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    Server:
+      type: object
+      required: [id, name, status, owner, node, ram, cpu, disk]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [running, stopped, installing, suspended]
+        owner:
+          type: string
+        node:
+          type: string
+        ram:
+          type: integer
+        cpu:
+          type: integer
+        disk:
+          type: integer
+
+    ProtectFeature:
+      type: object
+      required: [id, name, description, enabled]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+
+    ProtectToggleInput:
+      type: object
+      required: [id, enabled]
+      properties:
+        id:
+          type: integer
+        enabled:
+          type: boolean
+
+    MaintenanceStatus:
+      type: object
+      required: [enabled, message]
+      properties:
+        enabled:
+          type: boolean
+        message:
+          type: string
+
+    MaintenanceInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        message:
+          type: string
+
+    OverviewStats:
+      type: object
+      required: [totalUsers, totalServers, activeServers, bannedUsers, adminCount, devCount]
+      properties:
+        totalUsers:
+          type: integer
+        totalServers:
+          type: integer
+        activeServers:
+          type: integer
+        bannedUsers:
+          type: integer
+        adminCount:
+          type: integer
+        devCount:
+          type: integer
+
+    ActivityLog:
+      type: object
+      required: [id, action, user, timestamp]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        user:
+          type: string
+        timestamp:
+          type: string
+        details:
+          type: ["string", "null"]
