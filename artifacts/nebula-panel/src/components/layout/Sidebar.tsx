@@ -3,7 +3,8 @@ import { useAuth } from "@/lib/auth";
 import { NebulaSvgLogo, TelegramSvg } from "./NebulaSvg";
 import {
   LayoutDashboard, Server, Users, Settings, Shield, Wrench,
-  LogOut, ChevronRight, Zap, AlertTriangle
+  LogOut, ChevronRight, Zap, AlertTriangle, Network,
+  ScrollText, UserPlus, ServerCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout } from "@workspace/api-client-react";
@@ -18,16 +19,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: <LayoutDashboard size={18} /> },
-  { label: "Servers", href: "/servers", icon: <Server size={18} /> },
-  { label: "Users", href: "/users", icon: <Users size={18} />, roles: ["admin", "dev"] },
-  { label: "Admin Panel", href: "/admin", icon: <Settings size={18} />, roles: ["admin", "dev"] },
+  { label: "Dashboard",   href: "/",        icon: <LayoutDashboard size={18} /> },
+  { label: "Servers",     href: "/servers",  icon: <Server size={18} /> },
+  { label: "Users",       href: "/users",    icon: <Users size={18} />,    roles: ["admin", "dev"] },
+  { label: "Nodes",       href: "/nodes",    icon: <Network size={18} />,  roles: ["admin", "dev"] },
+  { label: "Audit Log",   href: "/audit",    icon: <ScrollText size={18} />, roles: ["admin", "dev"] },
+  { label: "Admin Panel", href: "/admin",    icon: <Settings size={18} />, roles: ["admin", "dev"] },
 ];
 
 const devNavItems: NavItem[] = [
-  { label: "Dev Dashboard", href: "/dev", icon: <Zap size={18} />, badge: "DEV" },
-  { label: "Protect Features", href: "/dev/protect", icon: <Shield size={18} /> },
-  { label: "Maintenance", href: "/dev/maintenance", icon: <AlertTriangle size={18} /> },
+  { label: "Dev Dashboard",    href: "/dev",              icon: <Zap size={18} />,          badge: "DEV" },
+  { label: "Protect Features", href: "/dev/protect",      icon: <Shield size={18} /> },
+  { label: "Maintenance",      href: "/dev/maintenance",  icon: <AlertTriangle size={18} /> },
 ];
 
 export function Sidebar() {
@@ -38,14 +41,8 @@ export function Sidebar() {
 
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        logout();
-        navigate("/login");
-      },
-      onError: () => {
-        logout();
-        navigate("/login");
-      }
+      onSuccess: () => { logout(); navigate("/login"); },
+      onError:   () => { logout(); navigate("/login"); },
     });
   };
 
@@ -53,11 +50,14 @@ export function Sidebar() {
     !item.roles || (user && item.roles.includes(user.role))
   );
 
-  const roleBadgeClass = {
-    user: "bg-slate-700 text-slate-300",
+  const roleBadgeClass: Record<string, string> = {
+    user:  "bg-slate-700 text-slate-300",
     admin: "bg-amber-900/60 text-amber-300 border border-amber-700/50",
-    dev: "bg-gradient-to-r from-purple-900/80 to-blue-900/80 text-blue-200 border border-purple-500/50 shadow-[0_0_8px_rgba(139,92,246,0.3)]",
+    dev:   "bg-gradient-to-r from-purple-900/80 to-blue-900/80 text-blue-200 border border-purple-500/50 shadow-[0_0_8px_rgba(139,92,246,0.3)]",
   };
+
+  const isActive = (href: string) =>
+    href === "/" ? location === "/" : location.startsWith(href);
 
   return (
     <aside className="w-64 min-h-screen flex flex-col border-r border-white/5 bg-[hsl(var(--sidebar))]">
@@ -100,39 +100,64 @@ export function Sidebar() {
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-2">Navigation</p>
 
         {visibleItems.map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+          const active = isActive(item.href);
           return (
             <Link key={item.href} href={item.href}>
               <div className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer group",
-                isActive
+                active
                   ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[0_0_12px_rgba(79,158,255,0.1)]"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               )}>
-                <span className={cn("transition-colors", isActive ? "text-blue-400" : "text-muted-foreground group-hover:text-foreground")}>
+                <span className={cn("transition-colors", active ? "text-blue-400" : "text-muted-foreground group-hover:text-foreground")}>
                   {item.icon}
                 </span>
                 <span className="flex-1">{item.label}</span>
-                {isActive && <ChevronRight size={14} className="text-blue-400/50" />}
+                {active && <ChevronRight size={14} className="text-blue-400/50" />}
               </div>
             </Link>
           );
         })}
 
+        {/* Quick actions for admin+ */}
+        {user && (user.role === "admin" || user.role === "dev") && (
+          <>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mt-4 mb-2">Quick Create</p>
+            <Link href="/users/create">
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer group",
+                isActive("/users/create") ? "bg-blue-500/15 text-blue-300 border border-blue-500/20" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              )}>
+                <UserPlus size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span>New User</span>
+              </div>
+            </Link>
+            <Link href="/servers/create">
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer group",
+                isActive("/servers/create") ? "bg-blue-500/15 text-blue-300 border border-blue-500/20" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              )}>
+                <ServerCog size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span>New Server</span>
+              </div>
+            </Link>
+          </>
+        )}
+
         {user?.role === "dev" && (
           <>
             <p className="text-[10px] font-semibold text-purple-400/70 uppercase tracking-widest px-3 mt-4 mb-2">Dev Zone</p>
             {devNavItems.map((item) => {
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              const active = isActive(item.href);
               return (
                 <Link key={item.href} href={item.href}>
                   <div className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer group",
-                    isActive
+                    active
                       ? "bg-purple-500/15 text-purple-300 border border-purple-500/20 shadow-[0_0_12px_rgba(139,92,246,0.1)]"
                       : "text-muted-foreground hover:text-purple-300/80 hover:bg-purple-500/5"
                   )}>
-                    <span className={cn("transition-colors", isActive ? "text-purple-400" : "text-muted-foreground group-hover:text-purple-400")}>
+                    <span className={cn("transition-colors", active ? "text-purple-400" : "text-muted-foreground group-hover:text-purple-400")}>
                       {item.icon}
                     </span>
                     <span className="flex-1">{item.label}</span>
@@ -152,7 +177,6 @@ export function Sidebar() {
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/5 space-y-2">
         <button
-          data-testid="button-logout"
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
         >
@@ -161,9 +185,7 @@ export function Sidebar() {
         </button>
 
         <div className="px-3 pt-2 border-t border-white/5">
-          <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
-            Nebula Panel Theme
-          </p>
+          <p className="text-[10px] text-muted-foreground/50 leading-relaxed">Nebula Panel Theme</p>
           <a
             href="https://t.me/RianModss"
             target="_blank"

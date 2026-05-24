@@ -22,6 +22,10 @@ tags:
     description: Maintenance mode
   - name: stats
     description: Statistics
+  - name: notifications
+    description: Notifications
+  - name: nodes
+    description: Node management
 
 paths:
   /healthz:
@@ -81,6 +85,27 @@ paths:
       responses:
         "200":
           description: Logged out
+
+  /auth/profile:
+    put:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Update own profile (password, email)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
 
   /users:
     get:
@@ -231,6 +256,82 @@ paths:
                 items:
                   $ref: "#/components/schemas/Server"
 
+    post:
+      operationId: createServer
+      tags: [servers]
+      summary: Create a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServerInput"
+      responses:
+        "201":
+          description: Server created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Server"
+
+  /servers/{id}:
+    get:
+      operationId: getServer
+      tags: [servers]
+      summary: Get a server by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Server found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Server"
+
+    delete:
+      operationId: deleteServer
+      tags: [servers]
+      summary: Delete a server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Server deleted
+
+  /servers/{id}/power:
+    post:
+      operationId: serverPower
+      tags: [servers]
+      summary: Send power signal to server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PowerInput"
+      responses:
+        "200":
+          description: Power signal sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Server"
+
   /protect/status:
     get:
       operationId: getProtectStatus
@@ -324,6 +425,64 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityLog"
 
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get notifications for current user
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All marked as read
+
+  /nodes:
+    get:
+      operationId: getNodes
+      tags: [nodes]
+      summary: List all nodes
+      responses:
+        "200":
+          description: Nodes list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Node"
+
 components:
   schemas:
     HealthStatus:
@@ -351,6 +510,16 @@ components:
           type: string
         user:
           $ref: "#/components/schemas/User"
+
+    ProfileUpdate:
+      type: object
+      properties:
+        email:
+          type: string
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
 
     User:
       type: object
@@ -428,6 +597,31 @@ components:
         disk:
           type: integer
 
+    ServerInput:
+      type: object
+      required: [name, owner, node, ram, cpu, disk]
+      properties:
+        name:
+          type: string
+        owner:
+          type: string
+        node:
+          type: string
+        ram:
+          type: integer
+        cpu:
+          type: integer
+        disk:
+          type: integer
+
+    PowerInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [start, stop, restart, kill]
+
     ProtectFeature:
       type: object
       required: [id, name, description, enabled]
@@ -499,3 +693,41 @@ components:
           type: string
         details:
           type: ["string", "null"]
+
+    Notification:
+      type: object
+      required: [id, title, message, type, read, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+          enum: [info, warning, success, error]
+        read:
+          type: boolean
+        createdAt:
+          type: string
+
+    Node:
+      type: object
+      required: [id, name, location, memoryTotal, diskTotal, serverCount, status]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        memoryTotal:
+          type: integer
+        diskTotal:
+          type: integer
+        serverCount:
+          type: integer
+        status:
+          type: string
+          enum: [online, offline, maintenance]

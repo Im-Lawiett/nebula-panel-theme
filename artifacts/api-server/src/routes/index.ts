@@ -6,6 +6,8 @@ import serversRouter from "./servers";
 import protectRouter from "./protect";
 import maintenanceRouter from "./maintenance";
 import statsRouter from "./stats";
+import notificationsRouter from "./notifications";
+import nodesRouter from "./nodes";
 
 const router: IRouter = Router();
 
@@ -16,5 +18,7 @@ router.use(serversRouter);
 router.use(protectRouter);
 router.use(maintenanceRouter);
 router.use(statsRouter);
+router.use(notificationsRouter);
+router.use(nodesRouter);
 
 export default router;

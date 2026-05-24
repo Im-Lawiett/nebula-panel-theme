@@ -15,13 +15,21 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
-    if (!user) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
     (req as any).user = user;
     next();
   } catch {
     res.status(401).json({ error: "Invalid token" });
   }
+}
+
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    if (!user || !roles.includes(user.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  };
 }
