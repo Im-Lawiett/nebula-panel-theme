@@ -2,13 +2,14 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { NebulaSvgLogo, TelegramSvg } from "./NebulaSvg";
 import {
-  LayoutDashboard, Server, Users, Settings, Shield, Wrench,
+  LayoutDashboard, Server, Users, Settings, Shield,
   LogOut, ChevronRight, Zap, AlertTriangle, Network,
-  ScrollText, UserPlus, ServerCog, HardDrive, Egg, MapPin
+  ScrollText, UserPlus, ServerCog, HardDrive, Egg, MapPin, Wrench
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
 
 interface NavItem {
   label: string;
@@ -37,6 +38,7 @@ const devNav: NavItem[] = [
   { label: "Dev Dashboard",    href: "/dev",             icon: <Zap size={17} />,           badge: "DEV" },
   { label: "Protect Features", href: "/dev/protect",     icon: <Shield size={17} /> },
   { label: "Maintenance",      href: "/dev/maintenance", icon: <AlertTriangle size={17} /> },
+  { label: "Panel Settings",   href: "/settings",        icon: <Wrench size={17} /> },
 ];
 
 const roleBadgeClass: Record<string, string> = {
@@ -50,6 +52,22 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const logoutMutation = useLogout();
+
+  const [panelName, setPanelName] = useState("Nebula");
+  const [panelTag, setPanelTag] = useState("Panel");
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s: any) => {
+        if (s.panelName) {
+          const parts = s.panelName.trim().split(" ");
+          setPanelName(parts[0] ?? "Nebula");
+          setPanelTag(parts.slice(1).join(" ") || "Panel");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
@@ -108,8 +126,12 @@ export function Sidebar() {
             <div className="absolute inset-0 rounded-full bg-blue-500/10 blur-md group-hover:bg-blue-500/20 transition-all" />
           </div>
           <div>
-            <div className="font-bold text-base leading-none text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Nebula</div>
-            <div className="text-[10px] text-blue-400/70 font-medium tracking-widest uppercase mt-0.5">Panel</div>
+            <div className="font-bold text-base leading-none text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              {panelName}
+            </div>
+            <div className="text-[10px] text-blue-400/70 font-medium tracking-widest uppercase mt-0.5">
+              {panelTag || "Panel"}
+            </div>
           </div>
         </Link>
       </div>
@@ -158,6 +180,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-3 pb-4 pt-2 border-t border-white/5 space-y-1">
+        <NavLink item={{ label: "Profile", href: "/profile", icon: <Users size={17} /> }} />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
