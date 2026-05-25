@@ -9,12 +9,21 @@ import { useUser } from "@/lib/user-context";
 import { usePanelStatus } from "@/lib/use-panel-status";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 
+function strToSeed(s: string | number): number {
+  const str = String(s);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
 function generateSparkData(seed: number, base: number, points = 12) {
   const data = [];
-  let v = base;
+  let v = Math.max(1, Math.min(99, base));
   for (let i = 0; i < points; i++) {
     const hash = Math.sin(seed * 9301 + i * 49297 + 233995) * 0.5 + 0.5;
-    v = Math.max(0, Math.min(100, v + (hash - 0.5) * 22));
+    v = Math.max(2, Math.min(97, v + (hash - 0.5) * 20));
     data.push({ v: Math.round(v) });
   }
   return data;
@@ -117,7 +126,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {visibleServers.map((server) => {
             const style = statusStyle(server.status);
-            const cpuSpark = generateSparkData(Number(server.id) * 7 + 1, server.cpuUsage ?? 40);
+            const cpuSpark = generateSparkData(strToSeed(server.id) * 7 + 1, server.cpuUsage ?? 40);
             const ramPct = server.memoryLimit > 0 ? Math.round((server.memoryUsage / server.memoryLimit) * 100) : 0;
             const trend = cpuSpark[cpuSpark.length - 1].v > cpuSpark[0].v;
 
