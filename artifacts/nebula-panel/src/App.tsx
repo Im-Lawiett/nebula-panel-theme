@@ -1,9 +1,12 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
+import { UserProvider } from "@/lib/user-context";
+import { MaintenanceOverlay } from "@/components/maintenance-overlay";
+import { BanOverlay } from "@/components/ban-overlay";
 
 // Layouts
 import { UserLayout } from "@/components/layout/user-layout";
@@ -28,6 +31,7 @@ import AdminUsers from "@/pages/admin/users";
 import AdminLocations from "@/pages/admin/locations";
 import AdminNests from "@/pages/admin/nests";
 import AdminApi from "@/pages/admin/api";
+import AdminSettings from "@/pages/admin/settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,24 +67,26 @@ function Router() {
             <Route path="/locations" component={AdminLocations} />
             <Route path="/nests" component={AdminNests} />
             <Route path="/api" component={AdminApi} />
+            <Route path="/settings" component={AdminSettings} />
             <Route component={NotFound} />
           </Switch>
         </AdminLayout>
       </Route>
 
-      {/* User Panel */}
+      {/* Server detail & files */}
       <Route path="/server/:id/files" nest>
         <UserLayout>
           <ServerFiles />
         </UserLayout>
       </Route>
-      
+
       <Route path="/server/:id" nest>
         <UserLayout>
           <ServerDetail />
         </UserLayout>
       </Route>
 
+      {/* User Panel */}
       <Route path="/" nest>
         <UserLayout>
           <Switch>
@@ -91,7 +97,7 @@ function Router() {
           </Switch>
         </UserLayout>
       </Route>
-      
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -100,14 +106,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeWrapper>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </ThemeWrapper>
+      <UserProvider>
+        <ThemeWrapper>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <MaintenanceOverlay />
+            <BanOverlay />
+            <Toaster />
+          </TooltipProvider>
+        </ThemeWrapper>
+      </UserProvider>
     </QueryClientProvider>
   );
 }

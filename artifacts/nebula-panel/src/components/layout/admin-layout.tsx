@@ -24,7 +24,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       title: "BASIC ADMINISTRATION",
       items: [
         { name: "Overview", icon: LayoutDashboard, href: "/admin" },
-        { name: "Settings", icon: Settings, href: "/admin/settings", locked: true },
+        { name: "Settings", icon: Settings, href: "/admin/settings" },
         { name: "Application API", icon: Key, href: "/admin/api" },
       ]
     },

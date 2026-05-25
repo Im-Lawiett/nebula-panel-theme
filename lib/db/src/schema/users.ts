@@ -9,6 +9,8 @@ export const usersTable = pgTable("panel_users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
+  isBanned: boolean("is_banned").default(false).notNull(),
+  banReason: text("ban_reason").default("").notNull(),
   serverCount: integer("server_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

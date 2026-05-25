@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, nodesTable, locationsTable, usersTable, nestsTable, eggsTable, apiKeysTable } from "@workspace/db";
+import { db, nodesTable, locationsTable, usersTable, nestsTable, eggsTable, apiKeysTable, panelSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
@@ -12,21 +12,14 @@ router.get("/admin/stats", async (req, res) => {
       db.select().from(nodesTable),
       db.select().from(usersTable),
     ]);
-
     const totalRam = nodes.reduce((s, n) => s + n.totalMemory, 0);
     const usedRam = nodes.reduce((s, n) => s + n.usedMemory, 0);
     const totalDisk = nodes.reduce((s, n) => s + n.totalDisk, 0);
     const usedDisk = nodes.reduce((s, n) => s + n.usedDisk, 0);
-
     res.json({
-      totalServers: 8,
-      activeServers: 5,
-      totalUsers: users.length,
-      totalNodes: nodes.length,
-      totalRam,
-      usedRam,
-      totalDisk,
-      usedDisk,
+      totalServers: 8, activeServers: 5,
+      totalUsers: users.length, totalNodes: nodes.length,
+      totalRam, usedRam, totalDisk, usedDisk,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get admin stats");
@@ -36,17 +29,77 @@ router.get("/admin/stats", async (req, res) => {
 
 // ===== ADMIN SERVERS =====
 router.get("/admin/servers", (req, res) => {
-  const servers = [
-    { id: 1, uuid: "18bdad52-96e6-47c5-ba4f-a1b2c3d4e5f6", name: "Roseeunli", owner: "dilzz", node: "node-nyk1", egg: "Paper MC 1.20", cpuLimit: 0, memoryLimit: 4096, diskLimit: 20480, status: "running" },
-    { id: 2, uuid: "2ab3c4d5-e6f7-8901-bcde-f01234567890", name: "freeunli", owner: "jelen", node: "node-nyk1", egg: "Vanilla MC 1.20", cpuLimit: 0, memoryLimit: 1024, diskLimit: 5120, status: "running" },
-    { id: 3, uuid: "3bc4d5e6-f789-0123-cdef-012345678901", name: "semogabisayaallahunli", owner: "dilzz", node: "node-sg1", egg: "Fabric 1.20", cpuLimit: 0, memoryLimit: 2048, diskLimit: 10240, status: "stopped" },
-    { id: 4, uuid: "4cd5e6f7-8901-2345-def0-123456789012", name: "lynzraunli", owner: "jelen", node: "node-nyk1", egg: "NodeJS Bot", cpuLimit: 0, memoryLimit: 512, diskLimit: 2048, status: "running" },
-    { id: 5, uuid: "5de6f789-0123-4567-e012-345678901234", name: "ubotisbackunli", owner: "dilzz", node: "node-sg1", egg: "NodeJS Bot", cpuLimit: 0, memoryLimit: 512, diskLimit: 1024, status: "starting" },
-    { id: 6, uuid: "6ef78901-2345-6789-f123-456789012345", name: "kalzzunli", owner: "jelen", node: "node-nyk1", egg: "Python App", cpuLimit: 0, memoryLimit: 1024, diskLimit: 5120, status: "offline" },
-    { id: 7, uuid: "7f089012-3456-789a-0234-567890123456", name: "panounli", owner: "pano", node: "node-nyk2", egg: "Paper MC 1.19", cpuLimit: 0, memoryLimit: 4096, diskLimit: 20480, status: "running" },
-    { id: 8, uuid: "8a190123-4567-89ab-1234-678901234567", name: "madeunli", owner: "pano", node: "node-sg1", egg: "Vanilla MC 1.18", cpuLimit: 0, memoryLimit: 2048, diskLimit: 15360, status: "stopped" },
-  ];
-  res.json(servers);
+  res.json([
+    { id: 1, uuid: "18bdad52-96e6-47c5-ba4f-a1b2c3d4e5f6", name: "Roseeunli", owner: "dilzz", ownerUserId: 1, node: "node-nyk1", egg: "Paper MC 1.20", cpuLimit: 0, memoryLimit: 4096, diskLimit: 20480, status: "running" },
+    { id: 2, uuid: "2ab3c4d5-e6f7-8901-bcde-f01234567890", name: "freeunli", owner: "jelen", ownerUserId: 2, node: "node-nyk1", egg: "Vanilla MC 1.20", cpuLimit: 0, memoryLimit: 1024, diskLimit: 5120, status: "running" },
+    { id: 3, uuid: "3bc4d5e6-f789-0123-cdef-012345678901", name: "semogabisayaallahunli", owner: "dilzz", ownerUserId: 1, node: "node-sg1", egg: "Fabric 1.20", cpuLimit: 0, memoryLimit: 2048, diskLimit: 10240, status: "stopped" },
+    { id: 4, uuid: "4cd5e6f7-8901-2345-def0-123456789012", name: "lynzraunli", owner: "jelen", ownerUserId: 2, node: "node-nyk1", egg: "NodeJS Bot", cpuLimit: 0, memoryLimit: 512, diskLimit: 2048, status: "running" },
+    { id: 5, uuid: "5de6f789-0123-4567-e012-345678901234", name: "ubotisbackunli", owner: "dilzz", ownerUserId: 1, node: "node-sg1", egg: "NodeJS Bot", cpuLimit: 0, memoryLimit: 512, diskLimit: 1024, status: "starting" },
+    { id: 6, uuid: "6ef78901-2345-6789-f123-456789012345", name: "kalzzunli", owner: "jelen", ownerUserId: 2, node: "node-nyk1", egg: "Python App", cpuLimit: 0, memoryLimit: 1024, diskLimit: 5120, status: "offline" },
+    { id: 7, uuid: "7f089012-3456-789a-0234-567890123456", name: "panounli", owner: "pano", ownerUserId: 3, node: "node-nyk2", egg: "Paper MC 1.19", cpuLimit: 0, memoryLimit: 4096, diskLimit: 20480, status: "running" },
+    { id: 8, uuid: "8a190123-4567-89ab-1234-678901234567", name: "madeunli", owner: "pano", ownerUserId: 3, node: "node-sg1", egg: "Vanilla MC 1.18", cpuLimit: 0, memoryLimit: 2048, diskLimit: 15360, status: "stopped" },
+  ]);
+});
+
+// ===== PANEL SETTINGS =====
+router.get("/admin/settings", async (req, res) => {
+  try {
+    const settings = await db.select().from(panelSettingsTable);
+    const map = Object.fromEntries(settings.map((s) => [s.key, s.value]));
+    res.json({
+      panelName: map["panel_name"] || "Nebula Panel",
+      panelDescription: map["panel_description"] || "Next generation server management panel",
+      maintenanceMode: map["maintenance_mode"] === "true",
+      maintenanceMessage: map["maintenance_message"] || "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
+      antiPeekEnabled: map["anti_peek_enabled"] === "true",
+      registrationEnabled: map["registration_enabled"] !== "false",
+      developerName: "RianModss",
+      developerTelegram: "@RianModss",
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get settings");
+    res.status(500).json({ error: "Failed to get settings" });
+  }
+});
+
+router.patch("/admin/settings", async (req, res) => {
+  try {
+    const allowed = ["panel_name", "panel_description", "maintenance_mode", "maintenance_message", "anti_peek_enabled", "registration_enabled"];
+    const keyMap: Record<string, string> = {
+      panelName: "panel_name",
+      panelDescription: "panel_description",
+      maintenanceMode: "maintenance_mode",
+      maintenanceMessage: "maintenance_message",
+      antiPeekEnabled: "anti_peek_enabled",
+      registrationEnabled: "registration_enabled",
+    };
+    for (const [jsKey, dbKey] of Object.entries(keyMap)) {
+      if (req.body[jsKey] !== undefined && allowed.includes(dbKey)) {
+        const value = String(req.body[jsKey]);
+        const existing = await db.select().from(panelSettingsTable).where(eq(panelSettingsTable.key, dbKey));
+        if (existing.length > 0) {
+          await db.update(panelSettingsTable).set({ value }).where(eq(panelSettingsTable.key, dbKey));
+        } else {
+          await db.insert(panelSettingsTable).values({ key: dbKey, value });
+        }
+      }
+    }
+    const settings = await db.select().from(panelSettingsTable);
+    const map = Object.fromEntries(settings.map((s) => [s.key, s.value]));
+    res.json({
+      panelName: map["panel_name"] || "Nebula Panel",
+      panelDescription: map["panel_description"] || "Next generation server management panel",
+      maintenanceMode: map["maintenance_mode"] === "true",
+      maintenanceMessage: map["maintenance_message"] || "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
+      antiPeekEnabled: map["anti_peek_enabled"] === "true",
+      registrationEnabled: map["registration_enabled"] !== "false",
+      developerName: "RianModss",
+      developerTelegram: "@RianModss",
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update settings");
+    res.status(500).json({ error: "Failed to update settings" });
+  }
 });
 
 // ===== NODES =====
@@ -149,10 +202,8 @@ router.post("/admin/users", async (req, res) => {
       return res.status(400).json({ error: "username, email, firstName, lastName required" });
     }
     const [user] = await db.insert(usersTable).values({
-      username, email,
-      firstName, lastName,
-      isAdmin: Boolean(isAdmin),
-      serverCount: 0,
+      username, email, firstName, lastName,
+      isAdmin: Boolean(isAdmin), isBanned: false, banReason: "", serverCount: 0,
     }).returning();
     res.status(201).json(user);
   } catch (err) {
@@ -197,6 +248,39 @@ router.delete("/admin/users/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to delete user");
     res.status(500).json({ error: "Failed to delete user" });
+  }
+});
+
+// Ban user
+router.post("/admin/users/:id/ban", async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (userId === 1) return res.status(403).json({ error: "Cannot ban the panel owner (ID 1)" });
+    const { reason } = req.body;
+    const [user] = await db.update(usersTable)
+      .set({ isBanned: true, banReason: reason || "Banned by administrator" })
+      .where(eq(usersTable.id, userId))
+      .returning();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    req.log.error({ err }, "Failed to ban user");
+    res.status(500).json({ error: "Failed to ban user" });
+  }
+});
+
+// Unban user
+router.post("/admin/users/:id/unban", async (req, res) => {
+  try {
+    const [user] = await db.update(usersTable)
+      .set({ isBanned: false, banReason: "" })
+      .where(eq(usersTable.id, Number(req.params.id)))
+      .returning();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    req.log.error({ err }, "Failed to unban user");
+    res.status(500).json({ error: "Failed to unban user" });
   }
 });
 
@@ -248,10 +332,7 @@ router.get("/admin/nests/:nestId/eggs", async (req, res) => {
 router.get("/admin/api-keys", async (req, res) => {
   try {
     const keys = await db.select().from(apiKeysTable);
-    res.json(keys.map((k) => ({
-      ...k,
-      allowedIps: k.allowedIps ? k.allowedIps.split(",").filter(Boolean) : [],
-    })));
+    res.json(keys.map((k) => ({ ...k, allowedIps: k.allowedIps ? k.allowedIps.split(",").filter(Boolean) : [] })));
   } catch (err) {
     req.log.error({ err }, "Failed to list API keys");
     res.status(500).json({ error: "Failed to list API keys" });
@@ -268,10 +349,7 @@ router.post("/admin/api-keys", async (req, res) => {
       identifier, token, description,
       allowedIps: Array.isArray(allowedIps) ? allowedIps.join(",") : "",
     }).returning();
-    res.status(201).json({
-      ...key,
-      allowedIps: key.allowedIps ? key.allowedIps.split(",").filter(Boolean) : [],
-    });
+    res.status(201).json({ ...key, allowedIps: key.allowedIps ? key.allowedIps.split(",").filter(Boolean) : [] });
   } catch (err) {
     req.log.error({ err }, "Failed to create API key");
     res.status(500).json({ error: "Failed to create API key" });
