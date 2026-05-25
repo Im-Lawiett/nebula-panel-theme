@@ -24,6 +24,7 @@ import EggsPage from "@/pages/admin/eggs";
 import MountsPage from "@/pages/admin/mounts";
 import LocationsPage from "@/pages/admin/locations";
 import PanelSettingsPage from "@/pages/settings";
+import DemoPage from "@/pages/demo";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -62,6 +63,9 @@ function Router() {
 
       {/* Panel Settings (dev only) */}
       <Route path="/settings"             component={PanelSettingsPage} />
+
+      {/* Public demo preview */}
+      <Route path="/demo"                 component={DemoPage} />
 
       {/* Profile */}
       <Route path="/profile"              component={ProfilePage} />
