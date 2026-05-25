@@ -27,12 +27,19 @@ export interface User {
 export interface Server {
   id: number;
   name: string;
+  description: string;
   ownerId: number;
   ownerUsername: string;
   node: string;
+  egg: string;
+  dockerImage: string;
+  startupCommand: string;
+  allocation: string;
   ram: number;
   cpu: number;
   disk: number;
+  databases: number;
+  backups: number;
   status: "running" | "stopped" | "installing" | "suspended";
   createdAt: string;
 }
@@ -45,10 +52,20 @@ export interface ActivityLog {
   timestamp: string;
 }
 
+export interface PanelSettings {
+  panelName: string;
+  panelDescription: string;
+  panelUrl: string;
+  accentColor: string;
+  allowRegistration: boolean;
+  maintenanceMessage: string;
+}
+
 interface StoreData {
   users: User[];
   servers: Server[];
   activity: ActivityLog[];
+  settings: PanelSettings;
   _meta: { nextUserId: number; nextServerId: number; nextActivityId: number };
 }
 
@@ -62,26 +79,75 @@ async function buildSeed(): Promise<StoreData> {
   ]);
 
   const users: User[] = [
-    { id: 1, username: "dev",       email: "dev@nebula.local",      passwordHash: h1, role: "dev",   isBanned: false, banReason: null, createdAt: new Date().toISOString() },
-    { id: 2, username: "admin",     email: "admin@nebula.local",    passwordHash: h2, role: "admin", isBanned: false, banReason: null, createdAt: new Date().toISOString() },
-    { id: 3, username: "playerone", email: "player@nebula.local",   passwordHash: h3, role: "user",  isBanned: false, banReason: null, createdAt: new Date().toISOString() },
+    { id: 1, username: "dev",       email: "dev@nebula.local",    passwordHash: h1, role: "dev",   isBanned: false, banReason: null, createdAt: new Date().toISOString() },
+    { id: 2, username: "admin",     email: "admin@nebula.local",  passwordHash: h2, role: "admin", isBanned: false, banReason: null, createdAt: new Date().toISOString() },
+    { id: 3, username: "playerone", email: "player@nebula.local", passwordHash: h3, role: "user",  isBanned: false, banReason: null, createdAt: new Date().toISOString() },
   ];
 
   const servers: Server[] = [
-    { id: 1, name: "Survival SMP",    ownerId: 3, ownerUsername: "playerone", node: "Node-SG01", ram: 4096,  cpu: 200, disk: 20480, status: "running",  createdAt: new Date(Date.now() - 86400000 * 30).toISOString() },
-    { id: 2, name: "Creative World",  ownerId: 3, ownerUsername: "playerone", node: "Node-US01", ram: 2048,  cpu: 100, disk: 10240, status: "stopped",  createdAt: new Date(Date.now() - 86400000 * 14).toISOString() },
-    { id: 3, name: "Dev Test Server", ownerId: 1, ownerUsername: "dev",       node: "Node-EU01", ram: 8192,  cpu: 400, disk: 51200, status: "running",  createdAt: new Date(Date.now() - 86400000 * 7).toISOString() },
-    { id: 4, name: "Admin Monitor",   ownerId: 2, ownerUsername: "admin",     node: "Node-SG01", ram: 1024,  cpu: 50,  disk: 5120,  status: "stopped",  createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-    { id: 5, name: "CS2 Competitive", ownerId: 3, ownerUsername: "playerone", node: "Node-US01", ram: 4096,  cpu: 300, disk: 30720, status: "running",  createdAt: new Date(Date.now() - 86400000 * 5).toISOString() },
+    {
+      id: 1, name: "Survival SMP", description: "Main survival Minecraft server",
+      ownerId: 3, ownerUsername: "playerone", node: "Node-SG01",
+      egg: "Paper", dockerImage: "ghcr.io/pterodactyl/yolks:java_17",
+      startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar server.jar",
+      allocation: "0.0.0.0:25565",
+      ram: 4096, cpu: 200, disk: 20480, databases: 2, backups: 5,
+      status: "running", createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    },
+    {
+      id: 2, name: "Creative World", description: "Creative mode server",
+      ownerId: 3, ownerUsername: "playerone", node: "Node-US01",
+      egg: "Vanilla", dockerImage: "ghcr.io/pterodactyl/yolks:java_17",
+      startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar server.jar",
+      allocation: "0.0.0.0:25566",
+      ram: 2048, cpu: 100, disk: 10240, databases: 1, backups: 3,
+      status: "stopped", createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
+    },
+    {
+      id: 3, name: "Dev Test Server", description: "Internal dev testing environment",
+      ownerId: 1, ownerUsername: "dev", node: "Node-EU01",
+      egg: "Node.js", dockerImage: "ghcr.io/pterodactyl/yolks:nodejs_18",
+      startupCommand: "node {{BOT_JS_FILE}}",
+      allocation: "0.0.0.0:3000",
+      ram: 8192, cpu: 400, disk: 51200, databases: 3, backups: 10,
+      status: "running", createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+    },
+    {
+      id: 4, name: "Admin Monitor", description: "Server monitoring bot",
+      ownerId: 2, ownerUsername: "admin", node: "Node-SG01",
+      egg: "Python", dockerImage: "ghcr.io/pterodactyl/yolks:python_3.11",
+      startupCommand: "python {{PY_FILE}}",
+      allocation: "0.0.0.0:8000",
+      ram: 1024, cpu: 50, disk: 5120, databases: 0, backups: 2,
+      status: "stopped", createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: 5, name: "CS2 Competitive", description: "Counter-Strike 2 competitive server",
+      ownerId: 3, ownerUsername: "playerone", node: "Node-US01",
+      egg: "CS2", dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd",
+      startupCommand: "./srcds_run -game csgo +sv_lan 0",
+      allocation: "0.0.0.0:27015",
+      ram: 4096, cpu: 300, disk: 30720, databases: 0, backups: 3,
+      status: "running", createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
   ];
 
   const activity: ActivityLog[] = [
-    { id: 1, action: "Server started",   user: "playerone", details: "Server 'Survival SMP' started",    timestamp: new Date(Date.now() - 3600000).toISOString() },
-    { id: 2, action: "User login",       user: "admin",     details: "Logged in from 192.168.1.1",        timestamp: new Date(Date.now() - 7200000).toISOString() },
-    { id: 3, action: "Server created",   user: "dev",       details: "Created server 'Dev Test Server'",  timestamp: new Date(Date.now() - 86400000).toISOString() },
+    { id: 1, action: "Server started",  user: "playerone", details: "Server 'Survival SMP' started",   timestamp: new Date(Date.now() - 3600000).toISOString() },
+    { id: 2, action: "User login",      user: "admin",     details: "Logged in from 192.168.1.1",       timestamp: new Date(Date.now() - 7200000).toISOString() },
+    { id: 3, action: "Server created",  user: "dev",       details: "Created server 'Dev Test Server'", timestamp: new Date(Date.now() - 86400000).toISOString() },
   ];
 
-  return { users, servers, activity, _meta: { nextUserId: 4, nextServerId: 6, nextActivityId: 4 } };
+  const settings: PanelSettings = {
+    panelName: "Nebula Panel",
+    panelDescription: "Pterodactyl Panel Theme",
+    panelUrl: "",
+    accentColor: "blue",
+    allowRegistration: false,
+    maintenanceMessage: "The panel is currently under maintenance. Please check back later.",
+  };
+
+  return { users, servers, activity, settings, _meta: { nextUserId: 4, nextServerId: 6, nextActivityId: 4 } };
 }
 
 // ─── Store class ──────────────────────────────────────────────────────────────
@@ -99,7 +165,7 @@ class Store {
       this.flush();
     } else {
       this.data = JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as StoreData;
-      // Migrate: ensure _meta exists
+      // Migrations
       if (!this.data._meta) {
         const maxUid = Math.max(0, ...this.data.users.map((u) => u.id));
         const maxSid = Math.max(0, ...this.data.servers.map((s) => s.id));
@@ -108,6 +174,26 @@ class Store {
         this.data.activity = this.data.activity ?? [];
         this.flush();
       }
+      if (!this.data.settings) {
+        this.data.settings = {
+          panelName: "Nebula Panel", panelDescription: "Pterodactyl Panel Theme",
+          panelUrl: "", accentColor: "blue", allowRegistration: false,
+          maintenanceMessage: "The panel is currently under maintenance.",
+        };
+        this.flush();
+      }
+      // Migrate servers to add new fields
+      let needsFlush = false;
+      for (const s of this.data.servers) {
+        if (!s.description) { s.description = ""; needsFlush = true; }
+        if (!s.egg) { s.egg = "Vanilla"; needsFlush = true; }
+        if (!s.dockerImage) { s.dockerImage = "ghcr.io/pterodactyl/yolks:java_17"; needsFlush = true; }
+        if (!s.startupCommand) { s.startupCommand = "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar server.jar"; needsFlush = true; }
+        if (!s.allocation) { s.allocation = "0.0.0.0:25565"; needsFlush = true; }
+        if (s.databases === undefined) { s.databases = 0; needsFlush = true; }
+        if (s.backups === undefined) { s.backups = 3; needsFlush = true; }
+      }
+      if (needsFlush) this.flush();
     }
     this.ready = true;
   }
@@ -118,7 +204,6 @@ class Store {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** ID 1 is always the dev superadmin — role is forced. */
   userToDto(user: User) {
     return {
       id: user.id,
@@ -135,21 +220,40 @@ class Store {
     return {
       id: s.id,
       name: s.name,
+      description: s.description ?? "",
       ownerId: s.ownerId,
       owner: s.ownerUsername,
       node: s.node,
+      egg: s.egg ?? "Vanilla",
+      dockerImage: s.dockerImage ?? "",
+      startupCommand: s.startupCommand ?? "",
+      allocation: s.allocation ?? "0.0.0.0:25565",
       ram: s.ram,
       cpu: s.cpu,
       disk: s.disk,
+      databases: s.databases ?? 0,
+      backups: s.backups ?? 3,
       status: s.status,
       createdAt: s.createdAt,
     };
   }
 
   isDev(user: User) { return user.id === 1; }
+  isAdmin(user: User) { return user.role === "admin" || user.id === 1; }
+  isStaff(user: User) { return user.role === "admin" || user.role === "dev" || user.id === 1; }
 
   canAccessServer(user: User, server: Server) {
-    return this.isDev(user) || server.ownerId === user.id;
+    return this.isStaff(user) || server.ownerId === user.id;
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  getSettings(): PanelSettings { return { ...this.data.settings }; }
+
+  updateSettings(updates: Partial<PanelSettings>): PanelSettings {
+    Object.assign(this.data.settings, updates);
+    this.flush();
+    return { ...this.data.settings };
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────
@@ -160,7 +264,6 @@ class Store {
 
   createUser(fields: Omit<User, "id" | "createdAt">) {
     const user: User = { ...fields, id: this.data._meta.nextUserId++, createdAt: new Date().toISOString() };
-    // Force role "dev" if they somehow get ID 1 (shouldn't happen normally)
     if (user.id === 1) user.role = "dev";
     this.data.users.push(user);
     this.flush();
@@ -171,7 +274,6 @@ class Store {
     const user = this.data.users.find((u) => u.id === id);
     if (!user) return null;
     Object.assign(user, updates);
-    // ID 1 is always dev — cannot be changed
     if (user.id === 1) user.role = "dev";
     this.flush();
     return user;
@@ -228,7 +330,6 @@ class Store {
       timestamp: new Date().toISOString(),
     };
     this.data.activity.push(log);
-    // Keep last 500 entries
     if (this.data.activity.length > 500) this.data.activity = this.data.activity.slice(-500);
     this.flush();
     return log;
