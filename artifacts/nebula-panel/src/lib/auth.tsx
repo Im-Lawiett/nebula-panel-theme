@@ -69,3 +69,8 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
 }
+
+// Standalone getter for non-hook contexts (e.g. fetch calls in serverApi.ts)
+export function getAuthToken(): string | null {
+  return localStorage.getItem("nebula_token");
+}

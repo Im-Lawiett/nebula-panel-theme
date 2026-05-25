@@ -8,6 +8,7 @@ import maintenanceRouter from "./maintenance";
 import statsRouter from "./stats";
 import notificationsRouter from "./notifications";
 import nodesRouter from "./nodes";
+import serverResourcesRouter from "./server-resources";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(serversRouter);
+router.use(serverResourcesRouter);
 router.use(protectRouter);
 router.use(maintenanceRouter);
 router.use(statsRouter);
