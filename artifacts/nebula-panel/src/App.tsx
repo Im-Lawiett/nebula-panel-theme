@@ -23,6 +23,7 @@ import DevMaintenancePage from "@/pages/dev/maintenance";
 import EggsPage from "@/pages/admin/eggs";
 import MountsPage from "@/pages/admin/mounts";
 import LocationsPage from "@/pages/admin/locations";
+import PanelSettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -58,6 +59,9 @@ function Router() {
       <Route path="/admin/eggs"           component={EggsPage} />
       <Route path="/admin/mounts"         component={MountsPage} />
       <Route path="/admin/locations"      component={LocationsPage} />
+
+      {/* Panel Settings (dev only) */}
+      <Route path="/settings"             component={PanelSettingsPage} />
 
       {/* Profile */}
       <Route path="/profile"              component={ProfilePage} />
