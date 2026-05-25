@@ -1,169 +1,149 @@
 import { Router } from "express";
-import { store } from "../lib/store";
-import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router = Router();
 
-// ─── List servers ─────────────────────────────────────────────────────────────
-// Staff (dev + admin) see ALL servers. Regular users see only their own.
-router.get("/servers", requireAuth, (req: any, res) => {
-  const user = req.user;
-  const servers = store.isStaff(user)
-    ? store.getServers()
-    : store.getServersByOwner(user.id);
-  res.json(servers.map((s) => store.serverToDto(s)));
+// Mock server data
+const mockServers = [
+  {
+    id: "abc123",
+    name: "Roseeunli",
+    description: "Main game server",
+    status: "running",
+    node: "node-nyk1",
+    egg: "Paper MC 1.20",
+    cpuUsage: 45.2,
+    memoryUsage: 2048,
+    memoryLimit: 4096,
+    diskUsage: 8192,
+    diskLimit: 20480,
+    ip: "0.0.0.0",
+    port: 25565,
+    uuid: "18bdad52-96e6-47c5-ba4f-a1b2c3d4e5f6",
+  },
+  {
+    id: "def456",
+    name: "freeunli",
+    description: null,
+    status: "running",
+    node: "node-nyk1",
+    egg: "Vanilla MC 1.20",
+    cpuUsage: 12.8,
+    memoryUsage: 512,
+    memoryLimit: 1024,
+    diskUsage: 1024,
+    diskLimit: 5120,
+    ip: "0.0.0.0",
+    port: 25566,
+    uuid: "2ab3c4d5-e6f7-8901-bcde-f01234567890",
+  },
+  {
+    id: "ghi789",
+    name: "semogabisayaallahunli",
+    description: "Survival world",
+    status: "stopped",
+    node: "node-sg1",
+    egg: "Fabric 1.20",
+    cpuUsage: 0,
+    memoryUsage: 0,
+    memoryLimit: 2048,
+    diskUsage: 4096,
+    diskLimit: 10240,
+    ip: "0.0.0.0",
+    port: 25567,
+    uuid: "3bc4d5e6-f789-0123-cdef-012345678901",
+  },
+  {
+    id: "jkl012",
+    name: "lynzraunli",
+    description: null,
+    status: "running",
+    node: "node-nyk1",
+    egg: "NodeJS Bot",
+    cpuUsage: 8.1,
+    memoryUsage: 256,
+    memoryLimit: 512,
+    diskUsage: 512,
+    diskLimit: 2048,
+    ip: "0.0.0.0",
+    port: 3000,
+    uuid: "4cd5e6f7-8901-2345-def0-123456789012",
+  },
+  {
+    id: "mno345",
+    name: "ubotisbackunli",
+    description: "Discord bot server",
+    status: "starting",
+    node: "node-sg1",
+    egg: "NodeJS Bot",
+    cpuUsage: 0,
+    memoryUsage: 128,
+    memoryLimit: 512,
+    diskUsage: 256,
+    diskLimit: 1024,
+    ip: "0.0.0.0",
+    port: 3001,
+    uuid: "5de6f789-0123-4567-e012-345678901234",
+  },
+  {
+    id: "pqr678",
+    name: "kalzzunli",
+    description: null,
+    status: "offline",
+    node: "node-nyk1",
+    egg: "Python App",
+    cpuUsage: 0,
+    memoryUsage: 0,
+    memoryLimit: 1024,
+    diskUsage: 2048,
+    diskLimit: 5120,
+    ip: "0.0.0.0",
+    port: 8080,
+    uuid: "6ef78901-2345-6789-f123-456789012345",
+  },
+  {
+    id: "stu901",
+    name: "panounli",
+    description: "Pano's server",
+    status: "running",
+    node: "node-nyk2",
+    egg: "Paper MC 1.19",
+    cpuUsage: 67.5,
+    memoryUsage: 3072,
+    memoryLimit: 4096,
+    diskUsage: 15360,
+    diskLimit: 20480,
+    ip: "0.0.0.0",
+    port: 25568,
+    uuid: "7f089012-3456-789a-0234-567890123456",
+  },
+  {
+    id: "vwx234",
+    name: "madeunli",
+    description: null,
+    status: "stopped",
+    node: "node-sg1",
+    egg: "Vanilla MC 1.18",
+    cpuUsage: 0,
+    memoryUsage: 0,
+    memoryLimit: 2048,
+    diskUsage: 8192,
+    diskLimit: 15360,
+    ip: "0.0.0.0",
+    port: 25569,
+    uuid: "8a190123-4567-89ab-1234-678901234567",
+  },
+];
+
+router.get("/servers", (req, res) => {
+  res.json(mockServers);
 });
 
-// ─── Get one server ───────────────────────────────────────────────────────────
-router.get("/servers/:id", requireAuth, (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Server not found" }); return; }
-  if (!store.canAccessServer(req.user, server)) {
-    res.status(403).json({ error: "You do not have access to this server" }); return;
+router.get("/servers/:id", (req, res) => {
+  const server = mockServers.find((s) => s.id === req.params.id);
+  if (!server) {
+    return res.status(404).json({ error: "Server not found" });
   }
-  res.json(store.serverToDto(server));
-});
-
-// ─── Create server ────────────────────────────────────────────────────────────
-router.post("/servers", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
-  const {
-    name, description, ownerUsername, node,
-    egg, dockerImage, startupCommand, allocation,
-    ram, cpu, disk, databases, backups,
-  } = req.body ?? {};
-
-  if (!name || !node) {
-    res.status(400).json({ error: "Missing required fields: name, node" });
-    return;
-  }
-
-  const ownerUser = ownerUsername ? store.getUserByUsername(ownerUsername) : req.user;
-  if (!ownerUser) {
-    res.status(400).json({ error: `User '${ownerUsername}' not found` });
-    return;
-  }
-
-  const server = store.createServer({
-    name,
-    description: description ?? "",
-    node,
-    ownerId: ownerUser.id,
-    ownerUsername: ownerUser.username,
-    egg: egg ?? "Vanilla",
-    dockerImage: dockerImage ?? "ghcr.io/pterodactyl/yolks:java_17",
-    startupCommand: startupCommand ?? "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar server.jar",
-    allocation: allocation ?? "0.0.0.0:25565",
-    ram: ram ?? 1024,
-    cpu: cpu ?? 100,
-    disk: disk ?? 10240,
-    databases: databases ?? 0,
-    backups: backups ?? 3,
-    status: "installing",
-  });
-
-  store.logActivity("Server created", req.user.username, `Created '${name}' for ${ownerUser.username} on ${node}`);
-
-  // Simulate install → stopped after 3s
-  setTimeout(() => { store.updateServer(server.id, { status: "stopped" }); }, 3000);
-
-  res.status(201).json(store.serverToDto(server));
-});
-
-// ─── Update server ────────────────────────────────────────────────────────────
-router.patch("/servers/:id", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
-  const id = parseInt(req.params.id);
-  const { name, description, node, egg, ram, cpu, disk, databases, backups } = req.body ?? {};
-  const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = name;
-  if (description !== undefined) updates.description = description;
-  if (node !== undefined) updates.node = node;
-  if (egg !== undefined) updates.egg = egg;
-  if (ram !== undefined) updates.ram = ram;
-  if (cpu !== undefined) updates.cpu = cpu;
-  if (disk !== undefined) updates.disk = disk;
-  if (databases !== undefined) updates.databases = databases;
-  if (backups !== undefined) updates.backups = backups;
-  const server = store.updateServer(id, updates as any);
-  if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  store.logActivity("Server updated", req.user.username, `Updated '${server.name}'`);
-  res.json(store.serverToDto(server));
-});
-
-// ─── Delete server ────────────────────────────────────────────────────────────
-router.delete("/servers/:id", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  store.deleteServer(server.id);
-  store.logActivity("Server deleted", req.user.username, `Deleted '${server.name}'`);
-  res.status(204).end();
-});
-
-// ─── Power control ────────────────────────────────────────────────────────────
-router.post("/servers/:id/power", requireAuth, (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Server not found" }); return; }
-  if (!store.canAccessServer(req.user, server)) {
-    res.status(403).json({ error: "Access denied" }); return;
-  }
-  const { action } = req.body ?? {};
-  switch (action) {
-    case "start":
-      store.updateServer(server.id, { status: "running" });
-      store.logActivity("Server started", req.user.username, server.name);
-      break;
-    case "stop":
-    case "kill":
-      store.updateServer(server.id, { status: "stopped" });
-      store.logActivity("Server stopped", req.user.username, server.name);
-      break;
-    case "restart":
-      store.updateServer(server.id, { status: "installing" });
-      store.logActivity("Server restarted", req.user.username, server.name);
-      setTimeout(() => { store.updateServer(server.id, { status: "running" }); }, 2000);
-      res.json({ ...store.serverToDto(server), status: "installing" });
-      return;
-    default:
-      res.status(400).json({ error: "Invalid action" }); return;
-  }
-  res.json(store.serverToDto(store.getServerById(server.id)!));
-});
-
-// ─── Suspend / Unsuspend ──────────────────────────────────────────────────────
-router.post("/servers/:id/suspend", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  store.updateServer(server.id, { status: "suspended" });
-  store.logActivity("Server suspended", req.user.username, server.name);
-  res.json(store.serverToDto(store.getServerById(server.id)!));
-});
-
-router.post("/servers/:id/unsuspend", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  store.updateServer(server.id, { status: "stopped" });
-  store.logActivity("Server unsuspended", req.user.username, server.name);
-  res.json(store.serverToDto(store.getServerById(server.id)!));
-});
-
-// ─── Live resource stats (simulated) ─────────────────────────────────────────
-router.get("/servers/:id/resources", requireAuth, (req: any, res) => {
-  const server = store.getServerById(parseInt(req.params.id));
-  if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  if (!store.canAccessServer(req.user, server)) {
-    res.status(403).json({ error: "Access denied" }); return;
-  }
-  const on = server.status === "running";
-  res.json({
-    cpuAbsolute: on ? Math.round((Math.random() * 40 + 5) * 10) / 10 : 0,
-    memoryBytes: on ? Math.floor(Math.random() * server.ram * 0.5 * 1048576 + server.ram * 0.15 * 1048576) : 0,
-    memoryLimitBytes: server.ram * 1048576,
-    diskBytes: Math.floor(server.disk * 0.24 * 1048576),
-    diskLimitBytes: server.disk * 1048576,
-    networkRxBytes: on ? Math.floor(Math.random() * 512000) : 0,
-    networkTxBytes: on ? Math.floor(Math.random() * 204800) : 0,
-    uptime: on ? Math.floor(Math.random() * 86400 + 3600) : 0,
-    state: server.status,
-  });
+  res.json(server);
 });
 
 export default router;

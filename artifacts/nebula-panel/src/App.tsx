@@ -1,80 +1,97 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/lib/auth";
-
-import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
-import ServersPage from "@/pages/servers";
-import ServerDetailPage from "@/pages/server-detail";
-import CreateServerPage from "@/pages/create-server";
-import UsersPage from "@/pages/users";
-import CreateUserPage from "@/pages/create-user";
-import AdminPage from "@/pages/admin";
-import NodesPage from "@/pages/nodes";
-import AuditLogPage from "@/pages/audit-log";
-import ProfilePage from "@/pages/profile";
-import BannedPage from "@/pages/banned";
-import MaintenanceViewPage from "@/pages/maintenance-view";
-import DevDashboardPage from "@/pages/dev/index";
-import DevProtectPage from "@/pages/dev/protect";
-import DevMaintenancePage from "@/pages/dev/maintenance";
-import EggsPage from "@/pages/admin/eggs";
-import MountsPage from "@/pages/admin/mounts";
-import LocationsPage from "@/pages/admin/locations";
-import PanelSettingsPage from "@/pages/settings";
-import DemoPage from "@/pages/demo";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
+
+// Layouts
+import { UserLayout } from "@/components/layout/user-layout";
+import { AdminLayout } from "@/components/layout/admin-layout";
+
+// Auth Pages
+import Login from "@/pages/login";
+import Register from "@/pages/register";
+
+// User Pages
+import Home from "@/pages/home";
+import Chat from "@/pages/chat";
+import Account from "@/pages/account";
+import ServerDetail from "@/pages/server/detail";
+import ServerFiles from "@/pages/server/files";
+
+// Admin Pages
+import AdminOverview from "@/pages/admin/overview";
+import AdminServers from "@/pages/admin/servers";
+import AdminNodes from "@/pages/admin/nodes";
+import AdminUsers from "@/pages/admin/users";
+import AdminLocations from "@/pages/admin/locations";
+import AdminNests from "@/pages/admin/nests";
+import AdminApi from "@/pages/admin/api";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
   },
 });
+
+function ThemeWrapper({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+  }, []);
+  return <>{children}</>;
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/login"            component={LoginPage} />
-      <Route path="/banned"           component={BannedPage} />
-      <Route path="/maintenance"      component={MaintenanceViewPage} />
-      <Route path="/"                 component={DashboardPage} />
+      {/* Auth */}
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
 
-      {/* Servers */}
-      <Route path="/servers"              component={ServersPage} />
-      <Route path="/servers/create"       component={CreateServerPage} />
-      <Route path="/servers/:id"          component={ServerDetailPage} />
-      <Route path="/servers/:id/:tab"     component={ServerDetailPage} />
+      {/* Admin Panel */}
+      <Route path="/admin" nest>
+        <AdminLayout>
+          <Switch>
+            <Route path="/" component={AdminOverview} />
+            <Route path="/servers" component={AdminServers} />
+            <Route path="/nodes" component={AdminNodes} />
+            <Route path="/users" component={AdminUsers} />
+            <Route path="/locations" component={AdminLocations} />
+            <Route path="/nests" component={AdminNests} />
+            <Route path="/api" component={AdminApi} />
+            <Route component={NotFound} />
+          </Switch>
+        </AdminLayout>
+      </Route>
 
-      {/* Users */}
-      <Route path="/users"                component={UsersPage} />
-      <Route path="/users/create"         component={CreateUserPage} />
+      {/* User Panel */}
+      <Route path="/server/:id/files" nest>
+        <UserLayout>
+          <ServerFiles />
+        </UserLayout>
+      </Route>
+      
+      <Route path="/server/:id" nest>
+        <UserLayout>
+          <ServerDetail />
+        </UserLayout>
+      </Route>
 
-      {/* Admin */}
-      <Route path="/admin"                component={AdminPage} />
-      <Route path="/nodes"                component={NodesPage} />
-      <Route path="/audit"                component={AuditLogPage} />
-
-      {/* Admin — Eggs / Mounts / Locations */}
-      <Route path="/admin/eggs"           component={EggsPage} />
-      <Route path="/admin/mounts"         component={MountsPage} />
-      <Route path="/admin/locations"      component={LocationsPage} />
-
-      {/* Panel Settings (dev only) */}
-      <Route path="/settings"             component={PanelSettingsPage} />
-
-      {/* Public demo preview */}
-      <Route path="/demo"                 component={DemoPage} />
-
-      {/* Profile */}
-      <Route path="/profile"              component={ProfilePage} />
-
-      {/* Dev */}
-      <Route path="/dev"                  component={DevDashboardPage} />
-      <Route path="/dev/protect"          component={DevProtectPage} />
-      <Route path="/dev/maintenance"      component={DevMaintenancePage} />
-
+      <Route path="/" nest>
+        <UserLayout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/chat" component={Chat} />
+            <Route path="/account" component={Account} />
+            <Route component={NotFound} />
+          </Switch>
+        </UserLayout>
+      </Route>
+      
       <Route component={NotFound} />
     </Switch>
   );
@@ -83,14 +100,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
+      <ThemeWrapper>
+        <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
-        </AuthProvider>
-        <Toaster />
-      </TooltipProvider>
+          <Toaster />
+        </TooltipProvider>
+      </ThemeWrapper>
     </QueryClientProvider>
   );
 }
