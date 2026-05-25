@@ -9,6 +9,7 @@ import statsRouter from "./stats";
 import notificationsRouter from "./notifications";
 import nodesRouter from "./nodes";
 import serverResourcesRouter from "./server-resources";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(maintenanceRouter);
 router.use(statsRouter);
 router.use(notificationsRouter);
 router.use(nodesRouter);
+router.use(settingsRouter);
 
 export default router;
