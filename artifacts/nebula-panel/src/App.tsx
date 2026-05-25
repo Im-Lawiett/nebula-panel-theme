@@ -32,6 +32,7 @@ import AdminLocations from "@/pages/admin/locations";
 import AdminNests from "@/pages/admin/nests";
 import AdminApi from "@/pages/admin/api";
 import AdminSettings from "@/pages/admin/settings";
+import AdminActivity from "@/pages/admin/activity";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ function Router() {
             <Route path="/nests" component={AdminNests} />
             <Route path="/api" component={AdminApi} />
             <Route path="/settings" component={AdminSettings} />
+            <Route path="/activity" component={AdminActivity} />
             <Route component={NotFound} />
           </Switch>
         </AdminLayout>

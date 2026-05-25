@@ -8,6 +8,8 @@ export interface PanelStatus {
   maintenanceMessage: string;
   developerName: string;
   developerTelegram: string;
+  motdEnabled: boolean;
+  motd: string;
 }
 
 export interface AdminSettings extends PanelStatus {

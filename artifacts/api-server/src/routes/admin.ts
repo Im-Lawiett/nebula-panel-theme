@@ -53,6 +53,8 @@ router.get("/admin/settings", async (req, res) => {
       maintenanceMessage: map["maintenance_message"] || "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
       antiPeekEnabled: map["anti_peek_enabled"] === "true",
       registrationEnabled: map["registration_enabled"] !== "false",
+      motdEnabled: map["motd_enabled"] === "true",
+      motd: map["motd"] || "",
       developerName: "RianModss",
       developerTelegram: "@RianModss",
     });
@@ -64,7 +66,7 @@ router.get("/admin/settings", async (req, res) => {
 
 router.patch("/admin/settings", async (req, res) => {
   try {
-    const allowed = ["panel_name", "panel_description", "maintenance_mode", "maintenance_message", "anti_peek_enabled", "registration_enabled"];
+    const allowed = ["panel_name", "panel_description", "maintenance_mode", "maintenance_message", "anti_peek_enabled", "registration_enabled", "motd_enabled", "motd"];
     const keyMap: Record<string, string> = {
       panelName: "panel_name",
       panelDescription: "panel_description",
@@ -72,6 +74,8 @@ router.patch("/admin/settings", async (req, res) => {
       maintenanceMessage: "maintenance_message",
       antiPeekEnabled: "anti_peek_enabled",
       registrationEnabled: "registration_enabled",
+      motdEnabled: "motd_enabled",
+      motd: "motd",
     };
     for (const [jsKey, dbKey] of Object.entries(keyMap)) {
       if (req.body[jsKey] !== undefined && allowed.includes(dbKey)) {
@@ -93,6 +97,8 @@ router.patch("/admin/settings", async (req, res) => {
       maintenanceMessage: map["maintenance_message"] || "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
       antiPeekEnabled: map["anti_peek_enabled"] === "true",
       registrationEnabled: map["registration_enabled"] !== "false",
+      motdEnabled: map["motd_enabled"] === "true",
+      motd: map["motd"] || "",
       developerName: "RianModss",
       developerTelegram: "@RianModss",
     });

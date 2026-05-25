@@ -18,6 +18,8 @@ router.get("/panel/status", async (req, res) => {
       maintenanceMessage:
         map["maintenance_message"] ||
         "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
+      motdEnabled: map["motd_enabled"] === "true",
+      motd: map["motd"] || "",
       developerName: "RianModss",
       developerTelegram: "@RianModss",
     });
@@ -28,6 +30,8 @@ router.get("/panel/status", async (req, res) => {
       registrationEnabled: true,
       panelName: "Nebula Panel",
       maintenanceMessage: "Panel sedang maintenance.",
+      motdEnabled: false,
+      motd: "",
       developerName: "RianModss",
       developerTelegram: "@RianModss",
     });

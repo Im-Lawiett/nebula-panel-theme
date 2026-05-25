@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Settings, Shield, Bell, Wrench, Lock, Globe,
+  Settings, Shield, Megaphone, Wrench, Lock, Globe,
   Save, Loader2, CheckCircle2, AlertTriangle, Eye, EyeOff, MessageCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,6 +25,8 @@ export default function AdminPanelSettings() {
     maintenanceMessage: "Panel sedang dalam maintenance. Silakan coba lagi nanti.",
     antiPeekEnabled: false,
     registrationEnabled: true,
+    motdEnabled: false,
+    motd: "",
   });
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export default function AdminPanelSettings() {
         maintenanceMessage: settings.maintenanceMessage,
         antiPeekEnabled: settings.antiPeekEnabled,
         registrationEnabled: settings.registrationEnabled,
+        motdEnabled: settings.motdEnabled ?? false,
+        motd: settings.motd ?? "",
       });
     }
   }, [settings]);
@@ -43,43 +47,20 @@ export default function AdminPanelSettings() {
   const handleSave = async () => {
     updateSettings.mutate(form, {
       onSuccess: () => {
-        toast({
-          title: "Pengaturan disimpan",
-          description: "Semua perubahan berhasil diterapkan.",
-        });
+        toast({ title: "Pengaturan disimpan", description: "Semua perubahan berhasil diterapkan." });
       },
       onError: () => {
-        toast({ title: "Gagal menyimpan pengaturan", variant: "destructive" });
+        toast({ title: "Gagal menyimpan", variant: "destructive" });
       },
     });
   };
 
-  const toggleMaintenance = (val: boolean) => {
-    const next = { ...form, maintenanceMode: val };
+  const quickToggle = (key: keyof typeof form, val: boolean, onMsg: string, offMsg: string) => {
+    const next = { ...form, [key]: val };
     setForm(next);
     updateSettings.mutate(next, {
       onSuccess: () => {
-        toast({
-          title: val ? "Maintenance Mode Aktif" : "Maintenance Mode Nonaktif",
-          description: val
-            ? "Semua user (kecuali owner ID 1) tidak bisa akses panel."
-            : "Panel kembali dapat diakses semua user.",
-        });
-      },
-    });
-  };
-
-  const toggleAntiPeek = (val: boolean) => {
-    const next = { ...form, antiPeekEnabled: val };
-    setForm(next);
-    updateSettings.mutate(next, {
-      onSuccess: () => {
-        toast({
-          title: val ? "Anti-Intip Diaktifkan" : "Anti-Intip Dinonaktifkan",
-          description: val
-            ? "User hanya bisa lihat server milik mereka sendiri."
-            : "User bisa melihat semua server.",
-        });
+        toast({ title: val ? onMsg : offMsg });
       },
     });
   };
@@ -99,25 +80,19 @@ export default function AdminPanelSettings() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Settings className="w-6 h-6 text-primary" /> Pengaturan Panel
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Kelola konfigurasi, keamanan, dan akses panel
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Kelola konfigurasi, keamanan, dan akses panel</p>
         </div>
         <Button
           onClick={handleSave}
           disabled={updateSettings.isPending}
           className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_10px_rgba(var(--primary),0.3)]"
         >
-          {updateSettings.isPending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4 mr-2" />
-          )}
+          {updateSettings.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Simpan
         </Button>
       </div>
 
-      {/* Maintenance Mode - Big Toggle */}
+      {/* Maintenance Mode */}
       <Card className={`border-2 transition-all ${form.maintenanceMode ? "border-yellow-500/50 bg-yellow-500/5 shadow-[0_0_20px_rgba(234,179,8,0.15)]" : "border-border bg-card/50"}`}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -132,7 +107,7 @@ export default function AdminPanelSettings() {
             </div>
             <Switch
               checked={form.maintenanceMode}
-              onCheckedChange={toggleMaintenance}
+              onCheckedChange={(v) => quickToggle("maintenanceMode", v, "Maintenance Mode Aktif", "Maintenance Mode Nonaktif")}
               className="data-[state=checked]:bg-yellow-500"
             />
           </div>
@@ -142,7 +117,7 @@ export default function AdminPanelSettings() {
             <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-3">
               <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-yellow-300">
-                Maintenance aktif. Semua user (kecuali Owner panel ID 1) tidak dapat mengakses panel dan akan melihat halaman maintenance.
+                Maintenance aktif. Semua user (kecuali Owner ID 1) tidak dapat mengakses panel.
               </p>
             </div>
             <div className="space-y-2">
@@ -166,7 +141,7 @@ export default function AdminPanelSettings() {
           </CardTitle>
           <CardDescription>Pengaturan privasi dan proteksi akses panel</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {/* Anti-Intip */}
           <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-background/40 border border-border/60">
             <div className="flex items-center gap-3">
@@ -175,12 +150,12 @@ export default function AdminPanelSettings() {
               </div>
               <div>
                 <p className="text-sm font-medium text-white">Anti-Intip Server</p>
-                <p className="text-xs text-muted-foreground">User hanya bisa lihat server milik mereka sendiri. Owner (ID 1) tetap bisa lihat semua.</p>
+                <p className="text-xs text-muted-foreground">User hanya bisa lihat server milik mereka. Owner tetap lihat semua.</p>
               </div>
             </div>
             <Switch
               checked={form.antiPeekEnabled}
-              onCheckedChange={toggleAntiPeek}
+              onCheckedChange={(v) => quickToggle("antiPeekEnabled", v, "Anti-Intip Diaktifkan", "Anti-Intip Dinonaktifkan")}
             />
           </div>
 
@@ -201,24 +176,61 @@ export default function AdminPanelSettings() {
             />
           </div>
 
-          {/* Owner Protection Notice */}
+          {/* Owner Protection */}
           <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20">
             <Lock className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-primary">Proteksi Owner Panel</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                User dengan ID 1 adalah pemilik panel dan tidak terkena pembatasan apapun — maintenance mode, anti-intip, maupun ban tidak berlaku untuk Owner.
+                User ID 1 adalah pemilik panel — maintenance, anti-intip, dan ban tidak berlaku untuk Owner.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* MOTD / Pengumuman */}
+      <Card className={`border transition-all ${form.motdEnabled ? "border-primary/40 bg-primary/5" : "border-border bg-card/50"}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${form.motdEnabled ? "bg-primary/20 border border-primary/30" : "bg-secondary border border-border"}`}>
+                <Megaphone className={`w-5 h-5 ${form.motdEnabled ? "text-primary" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <CardTitle className="text-base">Pengumuman (MOTD)</CardTitle>
+                <CardDescription>Tampilkan pesan banner di atas panel untuk semua user</CardDescription>
+              </div>
+            </div>
+            <Switch
+              checked={form.motdEnabled}
+              onCheckedChange={(v) => quickToggle("motdEnabled", v, "MOTD Diaktifkan", "MOTD Dinonaktifkan")}
+            />
+          </div>
+        </CardHeader>
+        {form.motdEnabled && (
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Isi Pengumuman</Label>
+              <Input
+                value={form.motd}
+                onChange={(e) => setForm({ ...form, motd: e.target.value })}
+                placeholder="contoh: Server maintenance dijadwalkan Sabtu malam pukul 23:00 WIB"
+                className="bg-background/50 border-white/10"
+              />
+              <p className="text-xs text-muted-foreground">
+                Akan tampil sebagai banner di atas panel. User bisa dismiss/tutup sendiri.
+              </p>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
       {/* Panel Info */}
       <Card className="bg-card/50 border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Bell className="w-4 h-4 text-primary" /> Informasi Panel
+            <Settings className="w-4 h-4 text-primary" /> Informasi Panel
           </CardTitle>
           <CardDescription>Nama dan deskripsi panel yang ditampilkan ke user</CardDescription>
         </CardHeader>
@@ -255,35 +267,32 @@ export default function AdminPanelSettings() {
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-bold text-white">Nebula Panel Theme</h3>
                 <span className="text-xs bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded font-mono">v1.0.0</span>
+                <span className="text-xs bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded">FREE</span>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Tema panel Pterodactyl dengan desain dark cyberpunk, lengkap dengan keamanan, chat publik, dan manajemen file.
+                Tema Pterodactyl dark cyberpunk — gratis untuk siapapun. Lengkap dengan sistem keamanan, chat publik, file manager, dan admin panel.
               </p>
               <Separator className="my-3 bg-border/50" />
               <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="flex items-center gap-2">
                   <span className="text-white font-medium">Developer:</span>
                   <span className="text-primary">RianModss</span>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-cyan-400" />
-                  <a
-                    href="https://t.me/RianModss"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline font-medium"
-                  >
+                  <a href="https://t.me/RianModss" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline font-medium">
                     @RianModss
                   </a>
                 </div>
+                <a href="https://github.com/Im-Lawiett/nebula-panel-theme" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-white transition-colors text-xs ml-auto">
+                  GitHub Repo →
+                </a>
               </div>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-green-400" />
-            <p className="text-xs text-muted-foreground">
-              Owner ID 1 memiliki akses penuh ke semua fitur tanpa batasan apapun.
-            </p>
+            <p className="text-xs text-muted-foreground">Owner ID 1 memiliki akses penuh ke semua fitur tanpa batasan apapun.</p>
           </div>
         </CardContent>
       </Card>
