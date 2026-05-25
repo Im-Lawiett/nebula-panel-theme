@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { store } from "../lib/store";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "nebula-secret-key";
 
@@ -14,7 +13,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
+    const user = store.getUserById(payload.userId);
     if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
     (req as any).user = user;
     next();
@@ -23,10 +22,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 }
 
+/** Allow only: ID 1 (dev), or users whose role is in the list */
 export function requireRole(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
-    if (!user || !roles.includes(user.role)) {
+    if (!user) { res.status(403).json({ error: "Forbidden" }); return; }
+    // ID 1 is always dev — always has access
+    if (user.id === 1) { next(); return; }
+    const effectiveRole = user.role as string;
+    if (!roles.includes(effectiveRole)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

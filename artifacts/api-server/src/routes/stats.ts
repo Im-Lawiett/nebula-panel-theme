@@ -1,38 +1,24 @@
 import { Router } from "express";
-import { db, usersTable, serversTable, activityTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { store } from "../lib/store";
 import { requireAuth } from "../middlewares/auth";
-import { desc } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/stats/overview", requireAuth, async (_req, res) => {
-  const [users, servers] = await Promise.all([
-    db.select().from(usersTable),
-    db.select().from(serversTable),
-  ]);
-
-  const totalUsers = users.length;
-  const totalServers = servers.length;
-  const activeServers = servers.filter((s) => s.status === "running").length;
-  const bannedUsers = users.filter((u) => u.isBanned).length;
-  const adminCount = users.filter((u) => u.role === "admin").length;
-  const devCount = users.filter((u) => u.role === "dev").length;
-
-  res.json({ totalUsers, totalServers, activeServers, bannedUsers, adminCount, devCount });
+router.get("/stats/overview", requireAuth, (_req, res) => {
+  const users   = store.getUsers();
+  const servers = store.getServers();
+  res.json({
+    totalUsers:    users.length,
+    totalServers:  servers.length,
+    activeServers: servers.filter((s) => s.status === "running").length,
+    bannedUsers:   users.filter((u) => u.isBanned).length,
+    adminCount:    users.filter((u) => u.id !== 1 && u.role === "admin").length,
+    devCount:      1, // always 1 — ID 1 is the only dev
+  });
 });
 
-router.get("/stats/activity", requireAuth, async (_req, res) => {
-  const logs = await db.select().from(activityTable).orderBy(desc(activityTable.timestamp)).limit(20);
-  res.json(
-    logs.map((l) => ({
-      id: l.id,
-      action: l.action,
-      user: l.user,
-      timestamp: l.timestamp.toISOString(),
-      details: l.details ?? null,
-    }))
-  );
+router.get("/stats/activity", requireAuth, (_req, res) => {
+  res.json(store.getActivity(20));
 });
 
 export default router;

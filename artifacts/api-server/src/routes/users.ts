@@ -1,90 +1,82 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable, activityTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { BanUserBody, UpdateUserBody } from "@workspace/api-zod";
-import { requireAuth } from "../middlewares/auth";
+import { store } from "../lib/store";
+import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router = Router();
 
-function userToDto(user: typeof usersTable.$inferSelect) {
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    isBanned: user.isBanned,
-    banReason: user.banReason ?? null,
-    createdAt: user.createdAt.toISOString(),
-  };
-}
-
-router.get("/users", requireAuth, async (req, res) => {
-  const users = await db.select().from(usersTable);
-  res.json(users.map(userToDto));
+// List all users — admin or dev only
+router.get("/users", requireAuth, requireRole("admin", "dev"), (_req, res) => {
+  res.json(store.getUsers().map((u) => store.userToDto(u)));
 });
 
-router.post("/users", requireAuth, async (req, res) => {
-  const { username, email, password, role } = req.body;
-  if (!username || !email || !password || !role) {
-    res.status(400).json({ error: "Missing fields" });
-    return;
-  }
+// Create user — admin or dev only
+router.post("/users", requireAuth, requireRole("admin", "dev"), async (req: any, res) => {
+  const { username, email, password, role } = req.body ?? {};
+  if (!username || !email || !password) { res.status(400).json({ error: "Missing fields" }); return; }
+  if (store.getUserByUsername(username)) { res.status(409).json({ error: "Username already taken" }); return; }
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({ username, email, passwordHash, role }).returning();
-  await db.insert(activityTable).values({ action: "User created", user: (req as any).user?.username ?? "system", details: `Created user ${username}` });
-  res.status(201).json(userToDto(user));
+  const user = store.createUser({ username, email, passwordHash, role: role ?? "user", isBanned: false, banReason: null });
+  store.logActivity("User created", req.user.username, `Created user ${username}`);
+  res.status(201).json(store.userToDto(user));
 });
 
-router.get("/users/:id", requireAuth, async (req, res) => {
+// Get single user
+router.get("/users/:id", requireAuth, (req: any, res) => {
   const id = parseInt(req.params.id);
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  // Users can only view themselves; admin/dev can view all
+  if (req.user.id !== 1 && req.user.role !== "admin" && req.user.id !== id) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  const user = store.getUserById(id);
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(userToDto(user));
+  res.json(store.userToDto(user));
 });
 
-router.patch("/users/:id", requireAuth, async (req, res) => {
+// Update user
+router.patch("/users/:id", requireAuth, requireRole("admin", "dev"), async (req: any, res) => {
   const id = parseInt(req.params.id);
-  const parsed = UpdateUserBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
-
+  const { username, email, role, password } = req.body ?? {};
   const updates: Record<string, unknown> = {};
-  if (parsed.data.username) updates.username = parsed.data.username;
-  if (parsed.data.email) updates.email = parsed.data.email;
-  if (parsed.data.role) updates.role = parsed.data.role;
-  if (parsed.data.password) updates.passwordHash = await bcrypt.hash(parsed.data.password, 10);
-
-  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
+  if (username) updates.username = username;
+  if (email) updates.email = email;
+  if (role && id !== 1) updates.role = role; // Can't change ID 1 role
+  if (password) updates.passwordHash = await bcrypt.hash(password, 10);
+  const user = store.updateUser(id, updates as any);
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
-  await db.insert(activityTable).values({ action: "User updated", user: (req as any).user?.username ?? "system", details: `Updated user ${user.username}` });
-  res.json(userToDto(user));
+  store.logActivity("User updated", req.user.username, `Updated user ${user.username}`);
+  res.json(store.userToDto(user));
 });
 
-router.delete("/users/:id", requireAuth, async (req, res) => {
+// Delete user
+router.delete("/users/:id", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
   const id = parseInt(req.params.id);
-  const [user] = await db.delete(usersTable).where(eq(usersTable.id, id)).returning();
+  if (id === 1) { res.status(403).json({ error: "Cannot delete the dev account" }); return; }
+  const user = store.getUserById(id);
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
-  await db.insert(activityTable).values({ action: "User deleted", user: (req as any).user?.username ?? "system", details: `Deleted user ${user.username}` });
+  store.deleteUser(id);
+  store.logActivity("User deleted", req.user.username, `Deleted user ${user.username}`);
   res.status(204).send();
 });
 
-router.post("/users/:id/ban", requireAuth, async (req, res) => {
+// Ban user
+router.post("/users/:id/ban", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
   const id = parseInt(req.params.id);
-  const parsed = BanUserBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
-
-  const [user] = await db.update(usersTable).set({ isBanned: true, banReason: parsed.data.reason }).where(eq(usersTable.id, id)).returning();
+  if (id === 1) { res.status(403).json({ error: "Cannot ban the dev account" }); return; }
+  const { reason } = req.body ?? {};
+  const user = store.updateUser(id, { isBanned: true, banReason: reason ?? "No reason provided" });
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
-  await db.insert(activityTable).values({ action: "User banned", user: (req as any).user?.username ?? "system", details: `Banned ${user.username}: ${parsed.data.reason}` });
-  res.json(userToDto(user));
+  store.logActivity("User banned", req.user.username, `Banned ${user.username}: ${reason}`);
+  res.json(store.userToDto(user));
 });
 
-router.post("/users/:id/unban", requireAuth, async (req, res) => {
+// Unban user
+router.post("/users/:id/unban", requireAuth, requireRole("admin", "dev"), (req: any, res) => {
   const id = parseInt(req.params.id);
-  const [user] = await db.update(usersTable).set({ isBanned: false, banReason: null }).where(eq(usersTable.id, id)).returning();
+  const user = store.updateUser(id, { isBanned: false, banReason: null });
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
-  await db.insert(activityTable).values({ action: "User unbanned", user: (req as any).user?.username ?? "system", details: `Unbanned ${user.username}` });
-  res.json(userToDto(user));
+  store.logActivity("User unbanned", req.user.username, `Unbanned ${user.username}`);
+  res.json(store.userToDto(user));
 });
 
 export default router;

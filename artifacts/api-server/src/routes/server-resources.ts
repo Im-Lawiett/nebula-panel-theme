@@ -1,12 +1,20 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth";
+import { store } from "../lib/store";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
-import os from "os";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+/** Returns true if user can access server, else sends 403/404 and returns false */
+function canAccess(req: any, res: any, sid: number): boolean {
+  const server = store.getServerById(sid);
+  if (!server) { res.status(404).json({ error: "Server not found" }); return false; }
+  if (!store.canAccessServer(req.user, server)) {
+    res.status(403).json({ error: "You do not have access to this server" }); return false;
+  }
+  return true;
+}
 
 // ─── IN-MEMORY STORES ────────────────────────────────────────────────────────
 const filesStore: Record<number, Record<string, { name: string; type: "file" | "dir"; size: number; mode: number; modifiedAt: string; content?: string }[]>> = {};
@@ -46,25 +54,17 @@ function seedFiles(sid: number) {
 
 function seedDbs(sid: number) {
   if (dbsStore[sid]) return;
-  dbsStore[sid] = [
-    { id: nextDbId++, name: `s${sid}_main`, username: `u${sid}_main`, host: "127.0.0.1", port: 3306, password: "****", createdAt: new Date(Date.now() - 86400000 * 7).toISOString() },
-  ];
+  dbsStore[sid] = [{ id: nextDbId++, name: `s${sid}_main`, username: `u${sid}_main`, host: "127.0.0.1", port: 3306, password: "****", createdAt: new Date(Date.now() - 86400000 * 7).toISOString() }];
 }
 
 function seedBackups(sid: number) {
   if (backupsStore[sid]) return;
-  backupsStore[sid] = [
-    { uuid: `backup-${sid}-1`, name: "Auto backup", successful: true, locked: false, size: 52428800, createdAt: new Date(Date.now() - 86400000).toISOString(), completedAt: new Date(Date.now() - 86400000 + 120000).toISOString() },
-  ];
+  backupsStore[sid] = [{ uuid: `backup-${sid}-1`, name: "Auto backup", successful: true, locked: false, size: 52428800, createdAt: new Date(Date.now() - 86400000).toISOString(), completedAt: new Date(Date.now() - 86400000 + 120000).toISOString() }];
 }
 
 function seedSchedules(sid: number) {
   if (schedulesStore[sid]) return;
-  schedulesStore[sid] = [
-    { id: nextSchedId++, name: "Daily Restart", cron: { minute: "0", hour: "4", dom: "*", month: "*", dow: "*" }, active: true, processing: false, lastRunAt: new Date(Date.now() - 86400000).toISOString(), nextRunAt: new Date(Date.now() + 3600000).toISOString(), tasks: [
-      { id: 1, action: "power", payload: "restart", timeOffset: 0 },
-    ]},
-  ];
+  schedulesStore[sid] = [{ id: nextSchedId++, name: "Daily Restart", cron: { minute: "0", hour: "4", dom: "*", month: "*", dow: "*" }, active: true, processing: false, lastRunAt: new Date(Date.now() - 86400000).toISOString(), nextRunAt: new Date(Date.now() + 3600000).toISOString(), tasks: [{ id: 1, action: "power", payload: "restart", timeOffset: 0 }] }];
 }
 
 function seedAllocations(sid: number) {
@@ -95,6 +95,7 @@ function seedSubusers(sid: number) {
 // ─── FILE ROUTES ─────────────────────────────────────────────────────────────
 router.get("/servers/:id/files/list", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const dir = (req.query.directory as string) || "/";
   seedFiles(sid);
   res.json(filesStore[sid][dir] ?? []);
@@ -102,39 +103,38 @@ router.get("/servers/:id/files/list", requireAuth, (req: any, res) => {
 
 router.get("/servers/:id/files/contents", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const filePath = req.query.file as string;
   if (!filePath) { res.status(400).json({ error: "file required" }); return; }
   seedFiles(sid);
-  const dir = "/" + filePath.split("/").slice(1, -1).join("/") || "/";
-  const fileName = filePath.split("/").pop() ?? "";
-  const dirKey = dir === "//" ? "/" : dir;
+  const parts = filePath.split("/").filter(Boolean);
+  const fileName = parts.pop() ?? "";
+  const dirKey = parts.length === 0 ? "/" : "/" + parts.join("/");
   const file = (filesStore[sid][dirKey] ?? []).find((f) => f.name === fileName);
   res.send(file?.content ?? "# File content not available");
 });
 
 router.post("/servers/:id/files/write", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const filePath = req.query.file as string;
   const content = req.body;
   if (!filePath) { res.status(400).json({ error: "file required" }); return; }
   seedFiles(sid);
-  const dir = filePath.includes("/") ? "/" + filePath.split("/").slice(1, -1).join("/") : "/";
-  const fileName = filePath.split("/").pop() ?? "";
-  const dirKey = dir === "//" ? "/" : dir;
+  const parts = filePath.split("/").filter(Boolean);
+  const fileName = parts.pop() ?? "";
+  const dirKey = parts.length === 0 ? "/" : "/" + parts.join("/");
   if (!filesStore[sid][dirKey]) filesStore[sid][dirKey] = [];
   const existing = filesStore[sid][dirKey].find((f) => f.name === fileName);
-  if (existing) {
-    existing.content = typeof content === "string" ? content : JSON.stringify(content);
-    existing.modifiedAt = new Date().toISOString();
-    existing.size = (existing.content ?? "").length;
-  } else {
-    filesStore[sid][dirKey].push({ name: fileName, type: "file", size: (typeof content === "string" ? content : "").length, mode: 33188, modifiedAt: new Date().toISOString(), content: typeof content === "string" ? content : JSON.stringify(content) });
-  }
+  const strContent = typeof content === "string" ? content : JSON.stringify(content);
+  if (existing) { existing.content = strContent; existing.modifiedAt = new Date().toISOString(); existing.size = strContent.length; }
+  else filesStore[sid][dirKey].push({ name: fileName, type: "file", size: strContent.length, mode: 33188, modifiedAt: new Date().toISOString(), content: strContent });
   res.json({ success: true });
 });
 
 router.post("/servers/:id/files/create-folder", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const { name, directory } = req.body;
   seedFiles(sid);
   const dir = directory || "/";
@@ -146,10 +146,11 @@ router.post("/servers/:id/files/create-folder", requireAuth, (req: any, res) => 
 
 router.post("/servers/:id/files/rename", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const { files, root } = req.body;
   seedFiles(sid);
   const dir = root || "/";
-  files.forEach(({ from, to }: { from: string; to: string }) => {
+  (files as { from: string; to: string }[]).forEach(({ from, to }) => {
     const item = (filesStore[sid][dir] ?? []).find((f) => f.name === from);
     if (item) item.name = to;
   });
@@ -158,15 +159,17 @@ router.post("/servers/:id/files/rename", requireAuth, (req: any, res) => {
 
 router.post("/servers/:id/files/delete", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const { files, root } = req.body;
   seedFiles(sid);
   const dir = root || "/";
-  filesStore[sid][dir] = (filesStore[sid][dir] ?? []).filter((f) => !files.includes(f.name));
+  filesStore[sid][dir] = (filesStore[sid][dir] ?? []).filter((f) => !(files as string[]).includes(f.name));
   res.json({ success: true });
 });
 
 router.post("/servers/:id/files/upload", requireAuth, upload.array("files"), (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   const dir = (req.query.directory as string) || "/";
   seedFiles(sid);
   if (!filesStore[sid][dir]) filesStore[sid][dir] = [];
@@ -180,25 +183,33 @@ router.post("/servers/:id/files/upload", requireAuth, upload.array("files"), (re
 });
 
 // ─── DATABASE ROUTES ──────────────────────────────────────────────────────────
-router.get("/servers/:id/databases", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedDbs(sid); res.json(dbsStore[sid]);
+router.get("/servers/:id/databases", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedDbs(sid); res.json(dbsStore[sid]);
 });
 
-router.post("/servers/:id/databases", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedDbs(sid);
+router.post("/servers/:id/databases", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedDbs(sid);
   const { name } = req.body;
   const newDb = { id: nextDbId++, name: `s${sid}_${name}`, username: `u${sid}_${name.slice(0, 10)}`, host: "127.0.0.1", port: 3306, password: Math.random().toString(36).slice(2, 14), createdAt: new Date().toISOString() };
   dbsStore[sid].push(newDb); res.status(201).json(newDb);
 });
 
-router.delete("/servers/:id/databases/:dbId", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedDbs(sid);
+router.delete("/servers/:id/databases/:dbId", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedDbs(sid);
   dbsStore[sid] = dbsStore[sid].filter((d) => d.id !== parseInt(req.params.dbId));
   res.status(204).end();
 });
 
-router.post("/servers/:id/databases/:dbId/rotate-password", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedDbs(sid);
+router.post("/servers/:id/databases/:dbId/rotate-password", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedDbs(sid);
   const db = dbsStore[sid].find((d) => d.id === parseInt(req.params.dbId));
   if (!db) { res.status(404).json({ error: "Not found" }); return; }
   db.password = Math.random().toString(36).slice(2, 14);
@@ -206,79 +217,104 @@ router.post("/servers/:id/databases/:dbId/rotate-password", requireAuth, (req, r
 });
 
 // ─── BACKUP ROUTES ────────────────────────────────────────────────────────────
-router.get("/servers/:id/backups", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedBackups(sid); res.json(backupsStore[sid]);
+router.get("/servers/:id/backups", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedBackups(sid); res.json(backupsStore[sid]);
 });
 
-router.post("/servers/:id/backups", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedBackups(sid);
-  const { name, locked, ignored } = req.body;
+router.post("/servers/:id/backups", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedBackups(sid);
+  const { name, locked } = req.body;
   const b = { uuid: `backup-${sid}-${Date.now()}`, name: name || `Backup ${new Date().toLocaleString()}`, successful: false, locked: locked ?? false, size: 0, createdAt: new Date().toISOString(), completedAt: null };
   backupsStore[sid].push(b);
   setTimeout(() => { b.successful = true; b.size = Math.floor(Math.random() * 104857600 + 10485760); b.completedAt = new Date().toISOString(); }, 3000);
   res.status(201).json(b);
 });
 
-router.delete("/servers/:id/backups/:uuid", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedBackups(sid);
+router.delete("/servers/:id/backups/:uuid", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedBackups(sid);
   backupsStore[sid] = backupsStore[sid].filter((b) => b.uuid !== req.params.uuid);
   res.status(204).end();
 });
 
-router.post("/servers/:id/backups/:uuid/restore", requireAuth, (req, res) => {
+router.post("/servers/:id/backups/:uuid/restore", requireAuth, (req: any, res) => {
   const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
   res.json({ success: true, message: "Restore queued" });
 });
 
-router.post("/servers/:id/backups/:uuid/lock", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedBackups(sid);
+router.post("/servers/:id/backups/:uuid/lock", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedBackups(sid);
   const b = backupsStore[sid].find((x) => x.uuid === req.params.uuid);
   if (b) b.locked = !b.locked;
   res.json(b ?? { error: "Not found" });
 });
 
 // ─── SCHEDULE ROUTES ──────────────────────────────────────────────────────────
-router.get("/servers/:id/schedules", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSchedules(sid); res.json(schedulesStore[sid]);
+router.get("/servers/:id/schedules", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSchedules(sid); res.json(schedulesStore[sid]);
 });
 
-router.post("/servers/:id/schedules", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSchedules(sid);
+router.post("/servers/:id/schedules", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSchedules(sid);
   const { name, cron_minute, cron_hour, cron_dom, cron_month, cron_dow } = req.body;
   const s = { id: nextSchedId++, name, cron: { minute: cron_minute ?? "*", hour: cron_hour ?? "*", dom: cron_dom ?? "*", month: cron_month ?? "*", dow: cron_dow ?? "*" }, active: true, processing: false, lastRunAt: null, nextRunAt: new Date(Date.now() + 3600000).toISOString(), tasks: [] };
   schedulesStore[sid].push(s); res.status(201).json(s);
 });
 
-router.delete("/servers/:id/schedules/:schedId", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSchedules(sid);
+router.delete("/servers/:id/schedules/:schedId", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSchedules(sid);
   schedulesStore[sid] = schedulesStore[sid].filter((s) => s.id !== parseInt(req.params.schedId));
   res.status(204).end();
 });
 
 // ─── ALLOCATION / NETWORK ROUTES ─────────────────────────────────────────────
-router.get("/servers/:id/allocations", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedAllocations(sid); res.json(allocationsStore[sid]);
+router.get("/servers/:id/allocations", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedAllocations(sid); res.json(allocationsStore[sid]);
 });
 
-router.post("/servers/:id/allocations/:allocId/primary", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedAllocations(sid);
+router.post("/servers/:id/allocations/:allocId/primary", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedAllocations(sid);
   allocationsStore[sid].forEach((a) => { a.primary = a.id === parseInt(req.params.allocId); });
   res.json(allocationsStore[sid]);
 });
 
-router.delete("/servers/:id/allocations/:allocId", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedAllocations(sid);
+router.delete("/servers/:id/allocations/:allocId", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedAllocations(sid);
   allocationsStore[sid] = allocationsStore[sid].filter((a) => a.id !== parseInt(req.params.allocId));
   res.status(204).end();
 });
 
 // ─── STARTUP ROUTES ───────────────────────────────────────────────────────────
-router.get("/servers/:id/startup", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedStartup(sid); res.json(startupStore[sid]);
+router.get("/servers/:id/startup", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedStartup(sid); res.json(startupStore[sid]);
 });
 
-router.put("/servers/:id/startup/variable", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedStartup(sid);
+router.put("/servers/:id/startup/variable", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedStartup(sid);
   const { key, value } = req.body;
   const v = startupStore[sid].variables.find((x) => x.envVariable === key);
   if (v) v.serverValue = value;
@@ -286,58 +322,74 @@ router.put("/servers/:id/startup/variable", requireAuth, (req, res) => {
 });
 
 // ─── SUBUSER ROUTES ───────────────────────────────────────────────────────────
-router.get("/servers/:id/subusers", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSubusers(sid); res.json(subusersStore[sid]);
+router.get("/servers/:id/subusers", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSubusers(sid); res.json(subusersStore[sid]);
 });
 
-router.post("/servers/:id/subusers", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSubusers(sid);
+router.post("/servers/:id/subusers", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSubusers(sid);
   const { email, permissions } = req.body;
   const u = { uuid: `sub-${Date.now()}`, username: email.split("@")[0], email, twoFactorEnabled: false, createdAt: new Date().toISOString(), permissions: permissions ?? [] };
   subusersStore[sid].push(u); res.status(201).json(u);
 });
 
-router.delete("/servers/:id/subusers/:uuid", requireAuth, (req, res) => {
-  const sid = parseInt(req.params.id); seedSubusers(sid);
+router.delete("/servers/:id/subusers/:uuid", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  seedSubusers(sid);
   subusersStore[sid] = subusersStore[sid].filter((u) => u.uuid !== req.params.uuid);
   res.status(204).end();
 });
 
 // ─── SETTINGS ROUTES ──────────────────────────────────────────────────────────
-router.post("/servers/:id/settings/rename", requireAuth, (req, res) => {
+router.post("/servers/:id/settings/rename", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  const { name } = req.body;
+  if (name) store.updateServer(sid, { name });
   res.json({ success: true });
 });
 
-router.post("/servers/:id/settings/reinstall", requireAuth, (req, res) => {
+router.post("/servers/:id/settings/reinstall", requireAuth, (req: any, res) => {
+  const sid = parseInt(req.params.id);
+  if (!canAccess(req, res, sid)) return;
+  store.updateServer(sid, { status: "installing" });
+  setTimeout(() => store.updateServer(sid, { status: "stopped" }), 5000);
   res.json({ success: true });
 });
 
 // ─── EGGS / NESTS ─────────────────────────────────────────────────────────────
 const eggs = [
-  { id: 1, nestId: 1, nestName: "Minecraft", name: "Vanilla", description: "Vanilla Minecraft server", dockerImage: "ghcr.io/pterodactyl/yolks:java_17", startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}" },
-  { id: 2, nestId: 1, nestName: "Minecraft", name: "Paper", description: "High performance Minecraft server", dockerImage: "ghcr.io/pterodactyl/yolks:java_17", startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}" },
-  { id: 3, nestId: 1, nestName: "Minecraft", name: "Forge", description: "Modded Minecraft with Forge", dockerImage: "ghcr.io/pterodactyl/yolks:java_17", startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 @user_jvm_args.txt @libraries/net/minecraftforge/forge/args.txt" },
-  { id: 4, nestId: 2, nestName: "Source Engine", name: "CS2", description: "Counter-Strike 2", dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd", startupCommand: "./srcds_run -game csgo +sv_lan 0" },
-  { id: 5, nestId: 2, nestName: "Source Engine", name: "Garry's Mod", description: "Garry's Mod dedicated server", dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd", startupCommand: "./srcds_run -game garrysmod +sv_lan 0" },
-  { id: 6, nestId: 3, nestName: "Rust", name: "Rust", description: "Rust dedicated server", dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd", startupCommand: "./RustDedicated -batchmode +server.hostname {{SERVER_HOSTNAME}}" },
-  { id: 7, nestId: 4, nestName: "Voice Servers", name: "TeamSpeak3", description: "TeamSpeak 3 Server", dockerImage: "ghcr.io/pterodactyl/yolks:debian", startupCommand: "./ts3server_minimal_runscript.sh" },
-  { id: 8, nestId: 5, nestName: "Discord Bots", name: "Python", description: "Python Discord Bot", dockerImage: "ghcr.io/pterodactyl/yolks:python_3.11", startupCommand: "python {{PY_FILE}}" },
-  { id: 9, nestId: 5, nestName: "Discord Bots", name: "Node.js", description: "Node.js Discord Bot", dockerImage: "ghcr.io/pterodactyl/yolks:nodejs_18", startupCommand: "node {{BOT_JS_FILE}}" },
+  { id: 1, nestId: 1, nestName: "Minecraft",     name: "Vanilla",    description: "Vanilla Minecraft server",              dockerImage: "ghcr.io/pterodactyl/yolks:java_17",   startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}" },
+  { id: 2, nestId: 1, nestName: "Minecraft",     name: "Paper",      description: "High performance Minecraft server",     dockerImage: "ghcr.io/pterodactyl/yolks:java_17",   startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}" },
+  { id: 3, nestId: 1, nestName: "Minecraft",     name: "Forge",      description: "Modded Minecraft with Forge",           dockerImage: "ghcr.io/pterodactyl/yolks:java_17",   startupCommand: "java -Xms128M -XX:MaxRAMPercentage=95.0 @libraries/net/minecraftforge/forge/args.txt" },
+  { id: 4, nestId: 2, nestName: "Source Engine", name: "CS2",        description: "Counter-Strike 2",                      dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd",  startupCommand: "./srcds_run -game csgo +sv_lan 0" },
+  { id: 5, nestId: 2, nestName: "Source Engine", name: "Garry's Mod",description: "Garry's Mod dedicated server",          dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd",  startupCommand: "./srcds_run -game garrysmod +sv_lan 0" },
+  { id: 6, nestId: 3, nestName: "Rust",          name: "Rust",       description: "Rust dedicated server",                 dockerImage: "ghcr.io/pterodactyl/yolks:steamcmd",  startupCommand: "./RustDedicated -batchmode +server.hostname {{SERVER_HOSTNAME}}" },
+  { id: 7, nestId: 4, nestName: "Voice Servers", name: "TeamSpeak3", description: "TeamSpeak 3 Server",                    dockerImage: "ghcr.io/pterodactyl/yolks:debian",    startupCommand: "./ts3server_minimal_runscript.sh" },
+  { id: 8, nestId: 5, nestName: "Discord Bots",  name: "Python",     description: "Python Discord Bot",                    dockerImage: "ghcr.io/pterodactyl/yolks:python_3.11", startupCommand: "python {{PY_FILE}}" },
+  { id: 9, nestId: 5, nestName: "Discord Bots",  name: "Node.js",    description: "Node.js Discord Bot",                   dockerImage: "ghcr.io/pterodactyl/yolks:nodejs_18",  startupCommand: "node {{BOT_JS_FILE}}" },
 ];
 
-const mounts = [
-  { id: 1, name: "Shared Plugins", description: "Shared plugins directory across servers", source: "/mnt/shared/plugins", target: "/home/container/plugins", readOnly: false, userMountable: false, servers: 3 },
-  { id: 2, name: "Backup Volume", description: "NFS backup storage mount", source: "/mnt/nfs/backups", target: "/home/container/backups", readOnly: false, userMountable: false, servers: 12 },
-  { id: 3, name: "World Templates", description: "Read-only world template files", source: "/mnt/templates/worlds", target: "/home/container/world-templates", readOnly: true, userMountable: true, servers: 5 },
+const mounts: Array<{ id: number; name: string; description: string; source: string; target: string; readOnly: boolean; userMountable: boolean; servers: number }> = [
+  { id: 1, name: "Shared Plugins",  description: "Shared plugins directory",  source: "/mnt/shared/plugins",   target: "/home/container/plugins",         readOnly: false, userMountable: false, servers: 3 },
+  { id: 2, name: "Backup Volume",   description: "NFS backup storage mount",  source: "/mnt/nfs/backups",       target: "/home/container/backups",         readOnly: false, userMountable: false, servers: 12 },
+  { id: 3, name: "World Templates", description: "Read-only world templates", source: "/mnt/templates/worlds",  target: "/home/container/world-templates",  readOnly: true,  userMountable: true,  servers: 5 },
 ];
 
 const locations = [
-  { id: 1, short: "SG", long: "Singapore (AS)", nodes: 2, servers: 15 },
-  { id: 2, short: "US-E", long: "US East Coast (NA)", nodes: 3, servers: 24 },
-  { id: 3, short: "EU-DE", long: "Frankfurt, Germany (EU)", nodes: 2, servers: 8 },
+  { id: 1, short: "SG",    long: "Singapore (AS)",            nodes: 2, servers: 15 },
+  { id: 2, short: "US-E",  long: "US East Coast (NA)",        nodes: 3, servers: 24 },
+  { id: 3, short: "EU-DE", long: "Frankfurt, Germany (EU)",   nodes: 2, servers: 8 },
 ];
 
-router.get("/eggs", requireAuth, (_req, res) => res.json(eggs));
+router.get("/eggs",            requireAuth, (_req, res) => res.json(eggs));
+router.get("/admin/eggs",      requireAuth, (_req, res) => res.json(eggs));
+router.get("/admin/locations", requireAuth, (_req, res) => res.json(locations));
 
 router.get("/admin/mounts", requireAuth, (_req, res) => res.json(mounts));
 router.post("/admin/mounts", requireAuth, (req, res) => {
@@ -350,8 +402,5 @@ router.delete("/admin/mounts/:id", requireAuth, (req, res) => {
   if (idx !== -1) mounts.splice(idx, 1);
   res.status(204).end();
 });
-
-router.get("/admin/locations", requireAuth, (_req, res) => res.json(locations));
-router.get("/admin/eggs", requireAuth, (_req, res) => res.json(eggs));
 
 export default router;
